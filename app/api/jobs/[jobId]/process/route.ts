@@ -1,105 +1,97 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { parseResume } from '@/lib/utils/file-parser';
-import { extractResumeInfo } from '@/lib/ai/parser';
-import { calculateMatchScore } from '@/lib/ai/matcher';
-import { generateCandidateSummary } from '@/lib/ai/scorer';
-import { auth } from '@clerk/nextjs/server';
-import { getSupabaseFile } from '@/lib/storage/supabase';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { parseResume } from "@/lib/utils/file-parser";
+import { extractResumeInfo } from "@/lib/ai/parser";
+import { calculateMatchScore } from "@/lib/ai/matcher";
+import { generateCandidateSummary } from "@/lib/ai/scorer";
+import { auth } from "@clerk/nextjs/server";
+import { getSupabaseFile } from "@/lib/storage/supabase";
 
-export async function POST(req: Request, context: { params: { jobId: string } }) {
-  const params = await context.params;
-  console.log("Final Params:", params);
-
-  const { jobId } = params;
-  console.log("Extracted jobId:", jobId);
-
+// -------------------------
+// POST: PROCESS RESUMES
+// -------------------------
+export async function POST(
+  req: Request,
+  context: { params: Promise<{ jobId: string }> }
+) {
   try {
+    // Next.js 15/16: params is a Promise
+    const { jobId } = await context.params;
+
     const { userId } = await auth();
-    console.log("🔐 Authenticated User:", userId);
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    // Fetch Job
-    console.log("📝 Fetching job...");
+    // Fetch job
     const job = await prisma.job.findFirst({
-      where: { id: params.jobId, userId },
+      where: { id: jobId, userId },
     });
+    if (!job)
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    console.log("📝 Job fetched:", job);
-
-    if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-
-    // Fetch Pending Candidates
-    console.log("👥 Fetching pending candidates...");
+    // Fetch pending candidates
     const candidates = await prisma.candidate.findMany({
-      where: { jobId: params.jobId, processingStatus: 'pending' },
+      where: { jobId, processingStatus: "pending" },
     });
-
-    console.log("👥 Pending candidates:", candidates.length);
-
     if (!candidates.length)
-      return NextResponse.json({ message: 'No pending candidates to process' });
+      return NextResponse.json({
+        message: "No pending candidates to process",
+      });
 
-    // Update job status
-    console.log("📌 Updating job status → processing");
-    await prisma.job.update({ where: { id: params.jobId }, data: { status: 'processing' } });
+    // Update job status → processing
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { status: "processing" },
+    });
 
     // Create processing log
-    console.log("🧾 Creating processing log...");
     const processingLog = await prisma.processingLog.create({
-      data: { jobId: params.jobId, status: 'started', totalResumes: candidates.length },
+      data: {
+        jobId,
+        status: "started",
+        totalResumes: candidates.length,
+      },
     });
-
-    console.log("🧾 Processing Log created:", processingLog.id);
 
     let processedCount = 0;
     let failedCount = 0;
     const BATCH_SIZE = 5;
 
+    // Batch processing
     for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-      console.log(`🚀 Processing batch ${i / BATCH_SIZE + 1}`);
-
       const batch = candidates.slice(i, i + BATCH_SIZE);
 
       await Promise.all(
         batch.map(async (candidate) => {
-          console.log(`➡️ Starting candidate ${candidate.id}`);
-
           try {
+            // Update candidate to processing state
             await prisma.candidate.update({
               where: { id: candidate.id },
-              data: { processingStatus: 'processing' },
+              data: { processingStatus: "processing" },
             });
 
-            console.log(`📥 Downloading resume:`, candidate.resumePath);
-
-            // Download resume
+            // Download resume from Supabase
             const resumeBuffer = await getSupabaseFile(candidate.resumePath!);
-            console.log("📁 Resume downloaded — size:", resumeBuffer?.length);
 
-            const fileType = candidate.resumePath!.endsWith('.pdf')
-              ? 'application/pdf'
-              : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            const fileType = candidate.resumePath!.endsWith(".pdf")
+              ? "application/pdf"
+              : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-            console.log("📄 Parsing resume...");
+            // Parse resume
             const resumeText = await parseResume(resumeBuffer, fileType);
-            console.log("📄 Resume parsed. Text length:", resumeText?.length);
 
-            console.log("🧠 Extracting resume info...");
+            // Extract info using AI
             const candidateInfo = await extractResumeInfo(resumeText);
-            console.log("🧠 Extracted info:", candidateInfo);
 
-            console.log("📊 Calculating match score...");
+            // Calculate match score
             const matchResult = calculateMatchScore(
               candidateInfo.skills,
               job.requiredSkills,
               candidateInfo.totalExperienceYears || 0,
-              job.experienceRequired || '0'
+              job.experienceRequired || "0"
             );
-            console.log("📊 Match Score:", matchResult);
 
-            console.log("📝 Generating AI summary...");
+            // Generate summary with LLM
             const summary = await generateCandidateSummary(
               candidateInfo,
               {
@@ -109,10 +101,8 @@ export async function POST(req: Request, context: { params: { jobId: string } })
               },
               matchResult.score
             );
-            console.log("📝 Summary generated");
 
-            // Update candidate
-            console.log(`📌 Updating candidate ${candidate.id}`);
+            // Update candidate final data
             await prisma.candidate.update({
               where: { id: candidate.id },
               data: {
@@ -131,27 +121,28 @@ export async function POST(req: Request, context: { params: { jobId: string } })
                 summary: summary.summary,
                 strengths: summary.strengths,
                 weaknesses: summary.weaknesses,
-                processingStatus: 'completed',
+                processingStatus: "completed",
                 updatedAt: new Date(),
               },
             });
 
             processedCount++;
-            console.log(`✅ Candidate processed (${processedCount})`);
 
             await prisma.processingLog.update({
               where: { id: processingLog.id },
-              data: { processedResumes: processedCount, status: 'in_progress' },
+              data: {
+                processedResumes: processedCount,
+                status: "in_progress",
+              },
             });
           } catch (err: any) {
-            console.error(`❌ Error processing candidate ${candidate.id}:`, err);
             failedCount++;
 
             await prisma.candidate.update({
               where: { id: candidate.id },
               data: {
-                processingStatus: 'failed',
-                processingError: err.message || 'Processing failed',
+                processingStatus: "failed",
+                processingError: err.message || "Processing failed",
               },
             });
 
@@ -163,22 +154,22 @@ export async function POST(req: Request, context: { params: { jobId: string } })
         })
       );
 
+      // Throttle between batches
       if (i + BATCH_SIZE < candidates.length) {
-        console.log("⏳ Waiting 2 seconds before next batch...");
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
 
-    console.log("🎉 All batches done. Updating job status → completed");
-
-    await prisma.job.update({ where: { id: params.jobId }, data: { status: 'completed' } });
+    // Mark job completed
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { status: "completed" },
+    });
 
     await prisma.processingLog.update({
       where: { id: processingLog.id },
-      data: { status: 'completed', completedAt: new Date() },
+      data: { status: "completed", completedAt: new Date() },
     });
-
-    console.log("🎉 Processing finished successfully");
 
     return NextResponse.json({
       success: true,
@@ -186,40 +177,43 @@ export async function POST(req: Request, context: { params: { jobId: string } })
       failed: failedCount,
       total: candidates.length,
     });
-
   } catch (error: any) {
-    console.error('🔥 MAIN ERROR in resume processing:', error);
-    return NextResponse.json({ error: 'Failed to process resumes', details: error.message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Failed to process resumes",
+        details: error.message,
+      },
+      { status: 500 }
+    );
   }
 }
 
-
-// GET endpoint
-export async function GET(req: Request, { params }: { params: { jobId: string } }) {
-  console.log("➡️ GET /process-status for job:", params.jobId);
-
+// -------------------------
+// GET: CHECK PROCESSING STATUS
+// -------------------------
+export async function GET(
+  req: Request,
+  context: { params: Promise<{ jobId: string }> }
+) {
   try {
+    const { jobId } = await context.params;
+
     const { userId } = await auth();
-    console.log("🔐 Authenticated User:", userId);
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    console.log("🧾 Fetching latest processing log...");
     const latestLog = await prisma.processingLog.findFirst({
-      where: { jobId: params.jobId },
-      orderBy: { startedAt: 'desc' },
+      where: { jobId },
+      orderBy: { startedAt: "desc" },
     });
 
-    if (!latestLog) {
-      console.log("⚠️ No log found");
-      return NextResponse.json({ status: 'not_started' });
-    }
+    if (!latestLog) return NextResponse.json({ status: "not_started" });
 
-    console.log("📄 Processing Log:", latestLog);
     return NextResponse.json(latestLog);
-
   } catch (error) {
-    console.error('🔥 Error fetching processing status:', error);
-    return NextResponse.json({ error: 'Failed to fetch status' }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch status" },
+      { status: 500 }
+    );
   }
 }
