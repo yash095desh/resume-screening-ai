@@ -53,8 +53,9 @@
     name                  String
     email                 String?
     phone                 String?
-    resumeUrl             String   // Cloudinary URL
-    resumeText            String?  @db.Text // Extracted text
+    resumeUrl             String   // Supabase public URL
+    resumePath            String   // NEW: path in Supabase bucket
+    resumeText            String?  @db.Text
     
     // Extracted Information
     skills                String[]
