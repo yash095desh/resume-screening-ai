@@ -1,11 +1,16 @@
 import canvas from 'canvas';
+
 if (typeof global.DOMMatrix === 'undefined') {
   global.DOMMatrix = canvas.DOMMatrix as any;
 }
+if (typeof global.ImageData === 'undefined') {
+  global.ImageData = canvas.ImageData as any;
+}
+
+
 
 import {PDFParse} from "pdf-parse";
 import mammoth from 'mammoth';
-
 
 export async function parseResume(
   file: Buffer,
@@ -32,8 +37,6 @@ export async function parseResume(
     throw new Error("Failed to parse resume: " + (err.message || err));
   }
 }
-
-
 
 export function validateFileType(mimeType: string): boolean {
   const allowedTypes = [
