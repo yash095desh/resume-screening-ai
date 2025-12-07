@@ -1,6 +1,11 @@
 import {PDFParse} from "pdf-parse";
 import mammoth from 'mammoth';
 
+import canvas from 'canvas';
+if (typeof global.DOMMatrix === 'undefined') {
+  global.DOMMatrix = canvas.DOMMatrix as any;
+}
+
 export async function parseResume(
   file: Buffer,
   mimeType: string
