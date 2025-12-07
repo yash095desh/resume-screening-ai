@@ -1,15 +1,4 @@
-import canvas from 'canvas';
-
-if (typeof global.DOMMatrix === 'undefined') {
-  global.DOMMatrix = canvas.DOMMatrix as any;
-}
-if (typeof global.ImageData === 'undefined') {
-  global.ImageData = canvas.ImageData as any;
-}
-
-
-
-import {PDFParse} from "pdf-parse";
+import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 
 export async function parseResume(
@@ -20,7 +9,7 @@ export async function parseResume(
     if (mimeType === "application/pdf") {
       const parser = new PDFParse({ data: file });
       const result = await parser.getText();
-      await parser.destroy?.(); 
+      await parser.destroy();
       return result.text;
     } else if (
       mimeType ===
