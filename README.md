@@ -26,8 +26,8 @@ AI-powered platform to rank and analyze candidates against job descriptions.
 
 1. **Clone the repo**
 ```bash
-git clone [your-repo-url]
-cd [project-name]
+git clone https://github.com/yash095desh/resume-screening-ai.git
+cd resume-screening-ai
 ```
 
 2. **Install dependencies**
