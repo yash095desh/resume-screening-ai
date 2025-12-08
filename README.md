@@ -1,36 +1,140 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Resume Screening System
 
-## Getting Started
+AI-powered platform to rank and analyze candidates against job descriptions.
 
-First, run the development server:
+## What It Does
 
+- Upload job description
+- Upload multiple resumes (PDF/DOCX)
+- AI automatically extracts and analyzes candidate data
+- Get ranked list with match scores
+- See matched and missing skills for each candidate
+- Export results to CSV/PDF
+
+## Tech Used
+
+- **Next.js 14** - Frontend & Backend
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Prisma + PostgreSQL** - Database
+- **Clerk** - Authentication
+- **Supabase** - File storage
+- **OpenRouter** - AI (LLM)
+- **Unstructured API** - PDF parsing
+
+## Setup
+
+1. **Clone the repo**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone [your-repo-url]
+cd [project-name]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Install dependencies**
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. **Set up environment variables**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `.env.local` file:
+```env
+# Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_key
+CLERK_SECRET_KEY=your_key
 
-## Learn More
+# Database
+DATABASE_URL=your_neon_database_url
 
-To learn more about Next.js, take a look at the following resources:
+# OpenRouter
+OPENROUTER_API_KEY=your_key
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
+SUPABASE_SERVICE_ROLE_KEY=your_key
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Unstructured
+UNSTRUCTURED_API_KEY=your_key
+UNSTRUCTURED_API_URL=https://api.unstructuredapp.io/general/v0/general
+```
 
-## Deploy on Vercel
+4. **Setup database**
+```bash
+npx prisma generate
+npx prisma db push
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+5. **Run development server**
+```bash
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000)
+
+## How to Use
+
+1. Sign up / Log in
+2. Click "New Job"
+3. Enter job title and paste JD
+4. Upload resumes (can upload multiple at once)
+5. Click "Process Candidates"
+6. Wait for AI to analyze (takes 1-2 mins for ~10 resumes)
+7. View ranked candidates
+8. Click on any candidate for detailed analysis
+9. Export results
+
+## Features Completed
+
+✅ Bulk resume upload
+✅ JD analysis and requirement extraction
+✅ AI-powered resume parsing
+✅ Skill matching (matched & missing)
+✅ Scoring system (0-100)
+✅ Fit verdict (Good/Moderate/Low)
+✅ Candidate ranking
+✅ Detailed candidate view
+✅ Export to CSV/PDF
+✅ Clean dashboard UI
+✅ Authentication
+
+## Project Structure
+
+```
+├── app/
+│   ├── api/              # API routes
+│   ├── (dashboard)/      # Main app pages
+│   └── (auth)/           # Login/signup pages
+├── components/           # React components
+├── lib/                  # Utilities
+├── prisma/              # Database schema
+└── public/              # Static files
+```
+
+## Deployment
+
+Deployed on Vercel: [https://resume-screening-ai-git-main-yash095deshs-projects.vercel.app]
+
+## Known Issues & Solutions
+
+**PDF Parsing:**
+- Initially tried client-side parsing - didn't work well
+- Switched to Unstructured API - works reliably
+
+**Processing Speed:**
+- Processes ~10 resumes in 1-2 minutes
+- Could be faster with paid AI tier
+
+## Future Improvements
+
+- Add filters (experience, skills, location)
+- Email integration for candidates
+- Interview scheduling
+- Behavior prediction
+- Resume templates validation
+
+## Links
+
+- **Live App:** [https://resume-screening-ai-git-main-yash095deshs-projects.vercel.app/]
+- **Demo Video:** [https://www.loom.com/share/496b4917c646424c8eaef48846895ac1]
+- **Documentation:** See `ARCHITECTURE.md` and `API.md` inside docs 
