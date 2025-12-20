@@ -21,13 +21,18 @@ import {
   ArrowLeft, 
   Loader2, 
   Sparkles,
-//   Search,
   FileText,
   Users,
   TrendingUp,
   CheckCircle2,
   AlertCircle,
-  Info
+  Info,
+  Briefcase,
+  MapPin,
+  GraduationCap,
+  Building2,
+  Star,
+  Clock
 } from "lucide-react";
 import Link from "next/link";
 
@@ -40,6 +45,15 @@ export default function NewSourcingJobPage() {
     title: "",
     jobDescription: "",
     maxCandidates: 50,
+    jobRequirements: {
+      requiredSkills: "",
+      niceToHave: "",
+      yearsOfExperience: "",
+      location: "",
+      industry: "",
+      educationLevel: "",
+      companyType: "",
+    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,12 +82,16 @@ export default function NewSourcingJobPage() {
     }
   };
 
-  const isValid = formData.title.length >= 3 && formData.jobDescription.length >= 50;
+  const isValid = 
+    formData.title.length >= 3 && 
+    formData.jobRequirements.requiredSkills.length >= 3 &&
+    formData.jobDescription.length >= 50;
+  
   const charCount = formData.jobDescription.length;
   const charCountColor = charCount < 50 ? "text-red-600" : charCount > 4500 ? "text-yellow-600" : "text-gray-500";
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/sourcing">
@@ -104,7 +122,7 @@ export default function NewSourcingJobPage() {
             {/* Job Title */}
             <div className="space-y-2">
               <Label htmlFor="title" className="text-base font-semibold flex items-center gap-2">
-                <FileText className="w-4 h-4" />
+                <Briefcase className="w-4 h-4" />
                 Job Title
                 <Badge variant="secondary" className="ml-auto">Required</Badge>
               </Label>
@@ -121,7 +139,272 @@ export default function NewSourcingJobPage() {
                 className="text-base"
               />
               <p className="text-xs text-gray-500">
-                This will be used to identify your sourcing job
+                The exact position title you&apos;re hiring for
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Required Skills */}
+            <div className="space-y-2">
+              <Label htmlFor="requiredSkills" className="text-base font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Required Skills
+                <Badge variant="secondary" className="ml-auto">Required</Badge>
+              </Label>
+              <Textarea
+                id="requiredSkills"
+                placeholder="Enter required skills, separated by commas or line breaks...
+
+Examples:
+- React, Node.js, TypeScript, PostgreSQL
+- Python, AWS, Docker, Kubernetes
+- Java, Spring Boot, Microservices, REST APIs"
+                value={formData.jobRequirements.requiredSkills}
+                onChange={(e) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      requiredSkills: e.target.value 
+                    }
+                  })
+                }
+                required
+                minLength={3}
+                maxLength={1000}
+                rows={4}
+                className="text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                List technical skills, frameworks, and tools that are must-haves
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Nice-to-Have Skills */}
+            <div className="space-y-2">
+              <Label htmlFor="niceToHave" className="text-base font-semibold flex items-center gap-2">
+                <Star className="w-4 h-4" />
+                Nice-to-Have Skills
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Textarea
+                id="niceToHave"
+                placeholder="Enter preferred but not required skills...
+
+Examples:
+- GraphQL, Redis, MongoDB
+- CI/CD, Terraform, Jenkins
+- Machine Learning, Data Science"
+                value={formData.jobRequirements.niceToHave}
+                onChange={(e) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      niceToHave: e.target.value 
+                    }
+                  })
+                }
+                maxLength={1000}
+                rows={3}
+                className="text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                Additional skills that would be a plus but aren&apos;t mandatory
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Years of Experience */}
+            <div className="space-y-2">
+              <Label htmlFor="yearsOfExperience" className="text-base font-semibold flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Years of Experience
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Select
+                value={formData.jobRequirements.yearsOfExperience}
+                onValueChange={(value) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      yearsOfExperience: value 
+                    }
+                  })
+                }
+              >
+                <SelectTrigger className="text-base">
+                  <SelectValue placeholder="Select experience level..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0-2">0-2 years (Entry Level)</SelectItem>
+                  <SelectItem value="2-4">2-4 years (Junior)</SelectItem>
+                  <SelectItem value="3-5">3-5 years (Mid-Level)</SelectItem>
+                  <SelectItem value="5-8">5-8 years (Senior)</SelectItem>
+                  <SelectItem value="8-12">8-12 years (Lead/Principal)</SelectItem>
+                  <SelectItem value="12+">12+ years (Executive/Architect)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Minimum years of professional experience required
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label htmlFor="location" className="text-base font-semibold flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Location
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Input
+                id="location"
+                placeholder="e.g., New York, San Francisco, London, Remote, United States"
+                value={formData.jobRequirements.location}
+                onChange={(e) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      location: e.target.value 
+                    }
+                  })
+                }
+                maxLength={200}
+                className="text-base"
+              />
+              <p className="text-xs text-gray-500">
+                Preferred location(s) or specify &quot;Remote&quot; for remote positions
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Industry */}
+            <div className="space-y-2">
+              <Label htmlFor="industry" className="text-base font-semibold flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Industry
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Select
+                value={formData.jobRequirements.industry}
+                onValueChange={(value) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      industry: value 
+                    }
+                  })
+                }
+              >
+                <SelectTrigger className="text-base">
+                  <SelectValue placeholder="Select target industry..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Software Development">Software Development</SelectItem>
+                  <SelectItem value="SaaS">SaaS</SelectItem>
+                  <SelectItem value="FinTech">FinTech</SelectItem>
+                  <SelectItem value="E-commerce">E-commerce</SelectItem>
+                  <SelectItem value="Healthcare">Healthcare</SelectItem>
+                  <SelectItem value="Education">Education (EdTech)</SelectItem>
+                  <SelectItem value="Finance">Financial Services</SelectItem>
+                  <SelectItem value="Consulting">IT Consulting</SelectItem>
+                  <SelectItem value="Cloud">Cloud Computing</SelectItem>
+                  <SelectItem value="AI/ML">AI/Machine Learning</SelectItem>
+                  <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                  <SelectItem value="Gaming">Gaming</SelectItem>
+                  <SelectItem value="Marketing">Digital Marketing</SelectItem>
+                  <SelectItem value="Any">Any Industry</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Preferred industry background for candidates
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Education Level */}
+            <div className="space-y-2">
+              <Label htmlFor="educationLevel" className="text-base font-semibold flex items-center gap-2">
+                <GraduationCap className="w-4 h-4" />
+                Education Level
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Select
+                value={formData.jobRequirements.educationLevel}
+                onValueChange={(value) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      educationLevel: value 
+                    }
+                  })
+                }
+              >
+                <SelectTrigger className="text-base">
+                  <SelectValue placeholder="Select minimum education..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="High School">High School Diploma</SelectItem>
+                  <SelectItem value="Associate">Associate Degree</SelectItem>
+                  <SelectItem value="Bachelor">Bachelor&apos;s Degree</SelectItem>
+                  <SelectItem value="Master">Master&apos;s Degree</SelectItem>
+                  <SelectItem value="PhD">PhD/Doctorate</SelectItem>
+                  <SelectItem value="Not Required">Not Required</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Minimum educational qualification required
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Company Type */}
+            <div className="space-y-2">
+              <Label htmlFor="companyType" className="text-base font-semibold flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Preferred Company Type
+                <Badge variant="outline" className="ml-auto">Optional</Badge>
+              </Label>
+              <Select
+                value={formData.jobRequirements.companyType}
+                onValueChange={(value) =>
+                  setFormData({ 
+                    ...formData, 
+                    jobRequirements: { 
+                      ...formData.jobRequirements, 
+                      companyType: value 
+                    }
+                  })
+                }
+              >
+                <SelectTrigger className="text-base">
+                  <SelectValue placeholder="Select company type preference..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Startup">Startup (Seed to Series A)</SelectItem>
+                  <SelectItem value="Growth">Growth Stage (Series B-D)</SelectItem>
+                  <SelectItem value="Enterprise">Enterprise/Large Corp</SelectItem>
+                  <SelectItem value="Tech Giants">Tech Giants (FAANG, etc.)</SelectItem>
+                  <SelectItem value="Agency">Agency/Consulting</SelectItem>
+                  <SelectItem value="Product">Product Companies</SelectItem>
+                  <SelectItem value="Any">Any Company Type</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Type of companies you prefer candidates to have worked at
               </p>
             </div>
 
@@ -139,12 +422,12 @@ export default function NewSourcingJobPage() {
                 placeholder="Paste your full job description here...
 
 Include:
-- Required skills and technologies
-- Years of experience needed
-- Responsibilities and requirements
-- Preferred qualifications
-- Company culture fit
-- Location preferences (if any)
+- Detailed responsibilities and day-to-day tasks
+- Team structure and who they'll work with
+- Projects they'll be working on
+- Company culture and values
+- Growth opportunities
+- Any other relevant information
 
 The more detailed your description, the better the AI can match candidates!"
                 value={formData.jobDescription}
@@ -154,7 +437,7 @@ The more detailed your description, the better the AI can match candidates!"
                 required
                 minLength={50}
                 maxLength={5000}
-                rows={16}
+                rows={12}
                 className="font-mono text-sm resize-none"
               />
               <div className="flex items-center justify-between">
@@ -259,7 +542,7 @@ The more detailed your description, the better the AI can match candidates!"
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Start Sourcing
+                    Start AI Sourcing
                   </>
                 )}
               </Button>
@@ -282,31 +565,31 @@ The more detailed your description, the better the AI can match candidates!"
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">1</span>
               </div>
-              <p>AI analyzes your job description to create LinkedIn search filters</p>
+              <p>AI analyzes your job requirements and creates optimized LinkedIn search filters</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">2</span>
               </div>
-              <p>We search LinkedIn for profiles matching your criteria</p>
+              <p>Automatically searches LinkedIn using skills, experience, location, and industry filters</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">3</span>
               </div>
-              <p>Profile details are extracted including experience, skills, and contact info</p>
+              <p>Extracts full profile details including work history, education, skills, and contact info</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">4</span>
               </div>
-              <p>AI scores each candidate (0-100) with detailed reasoning</p>
+              <p>AI scores each candidate (0-100) based on skills, experience, industry, and seniority match</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">5</span>
               </div>
-              <p>Results appear in real-time as they&apos;re processed</p>
+              <p>Results appear in real-time with detailed reasoning for each score</p>
             </div>
           </CardContent>
         </Card>
@@ -315,16 +598,16 @@ The more detailed your description, the better the AI can match candidates!"
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-green-600" />
-              Scoring Breakdown
+              AI Scoring Criteria
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-green-900">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold">Skills Match</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">25 pts</Badge>
+                <span className="font-semibold">Required Skills Match</span>
+                <Badge variant="secondary" className="bg-green-200 text-green-800">30 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">How many required skills they have</p>
+              <p className="text-xs text-green-700">Percentage of required skills they possess</p>
             </div>
             <Separator className="bg-green-200" />
             <div>
@@ -332,23 +615,31 @@ The more detailed your description, the better the AI can match candidates!"
                 <span className="font-semibold">Experience Level</span>
                 <Badge variant="secondary" className="bg-green-200 text-green-800">25 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Years of experience match</p>
+              <p className="text-xs text-green-700">Years of experience match with requirements</p>
             </div>
             <Separator className="bg-green-200" />
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Industry Relevance</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">25 pts</Badge>
+                <Badge variant="secondary" className="bg-green-200 text-green-800">20 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Same or related industry background</p>
+              <p className="text-xs text-green-700">Background in same or related industry</p>
             </div>
             <Separator className="bg-green-200" />
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold">Title/Seniority Fit</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">25 pts</Badge>
+                <span className="font-semibold">Title/Seniority Match</span>
+                <Badge variant="secondary" className="bg-green-200 text-green-800">15 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Current role matches target level</p>
+              <p className="text-xs text-green-700">Current role matches target seniority level</p>
+            </div>
+            <Separator className="bg-green-200" />
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold">Nice-to-Have Skills</span>
+                <Badge variant="secondary" className="bg-green-200 text-green-800">10 pts</Badge>
+              </div>
+              <p className="text-xs text-green-700">Bonus points for additional desired skills</p>
             </div>
           </CardContent>
         </Card>
@@ -359,30 +650,34 @@ The more detailed your description, the better the AI can match candidates!"
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-600" />
-            Tips for Best Results
+            Pro Tips for Best Results
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm text-purple-900">
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <span><strong>Be specific</strong> about required skills and technologies</span>
+              <span><strong>Be specific with skills:</strong> Use exact technology names (e.g., &quot;React 18&quot; instead of just &quot;frontend&quot;)</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <span><strong>Include experience level</strong> (e.g., &quot;5+ years&quot;, &quot;senior level&quot;)</span>
+              <span><strong>Separate required from nice-to-have:</strong> This helps AI prioritize candidates correctly</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <span><strong>Mention preferred companies</strong> or industries for better targeting</span>
+              <span><strong>Include experience context:</strong> Mention if you need specific domain experience</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <span><strong>Add location preferences</strong> if you have any (remote/specific cities)</span>
+              <span><strong>Use full location names:</strong> &quot;United Kingdom&quot; works better than &quot;UK&quot;</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
-              <span><strong>List &quot;nice to have&quot; skills</strong> separately from required ones</span>
+              <span><strong>Mention company preferences:</strong> If you want candidates from startups or Fortune 500 companies</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <span><strong>Detail the job description:</strong> More context = better AI matching and scoring</span>
             </li>
           </ul>
         </CardContent>

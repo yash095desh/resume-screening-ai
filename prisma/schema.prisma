@@ -97,10 +97,15 @@ model ProcessingLog {
 enum SourcingJobStatus {
   CREATED
   FORMATTING_JD
+  JD_FORMATTED
   SEARCHING_PROFILES
+  PROFILES_FOUND
   SCRAPING_PROFILES
-  SCORING
+  PARSING_PROFILES
+  SAVING_PROFILES
+  SCORING_PROFILES
   COMPLETED
+  RATE_LIMITED
   FAILED
 }
 
@@ -111,28 +116,56 @@ model SourcingJob {
   rawJobDescription     String              @db.Text
   maxCandidates         Int                 @default(50)
   
-  // === CHECKPOINT SYSTEM ===
+  // NEW: Store all job requirements as JSON
+  jobRequirements       Json?               // { requiredSkills, niceToHave, yearsOfExperience, location, industry, educationLevel, companyType }
+  
+  // === ENHANCED CHECKPOINT SYSTEM ===
   // Stage 1: JD Formatting
   searchFilters         Json?               // LinkedIn search filters from AI
-  
+  searchFiltersCreatedAt DateTime?          // When filters were saved
+
   // Stage 2: Profile Discovery
   discoveredUrls        Json?               // Array of profile URLs found
-  
-  // Stage 3: Batch Processing
-  lastCompletedBatch    Int                 @default(0)  // Which batch finished last
-  totalBatches          Int                 @default(2)  // Total batches (2×25)
-  
+  discoveredUrlsCreatedAt DateTime?         // When URLs were discovered
+
+  // Stage 3: Batch Scraping
+  scrapedProfilesData   Json?               // Store scraped raw data by batch
+  lastScrapedBatch      Int                 @default(0)  // Last batch scraped
+
+  // Stage 4: Batch Parsing
+  parsedProfilesData    Json?               // Store parsed data by batch
+  lastParsedBatch       Int                 @default(0)  // Last batch parsed
+
+  // Stage 5: Batch Saving
+  lastSavedBatch        Int                 @default(0)  // Last batch saved to DB
+
+  // Stage 6: Batch Scoring
+  lastScoredBatch       Int                 @default(0)  // Last batch scored
+
+  // Batch Configuration
+  totalBatches          Int                 @default(0)  // Total batches to process
+
   // === PROGRESS TRACKING ===
   status                SourcingJobStatus   @default(CREATED)
+  currentStage          String?             // Detailed stage info (e.g., "SCRAPING_BATCH_3")
   totalProfilesFound    Int                 @default(0)
   profilesScraped       Int                 @default(0)
+  profilesParsed        Int                 @default(0)
+  profilesSaved         Int                 @default(0)
   profilesScored        Int                 @default(0)
-  
-  // === CRASH RECOVERY ===
+
+  // === RATE LIMITING ===
+  rateLimitHitAt        DateTime?           // When rate limit was hit
+  rateLimitResetAt      DateTime?           // When we can retry
+  rateLimitType         String?             // 'apify_search' or 'apify_scrape' or 'openrouter'
+
+  // === CRASH RECOVERY & RETRY ===
   processingStartedAt   DateTime?
-  lastActivityAt        DateTime?           // Updated after each stage/batch
-  errorMessage          String?             @db.Text
+  lastActivityAt        DateTime?           // Updated after each checkpoint
+  retryAfter            DateTime?           // Don't retry before this time
   retryCount            Int                 @default(0)
+  maxRetries            Int                 @default(3)
+  errorMessage          String?             @db.Text
   failedAt              DateTime?
   
   // Metadata
@@ -153,50 +186,83 @@ model LinkedInCandidate {
   id                String        @id @default(cuid())
   sourcingJobId     String
   
-  // Profile Info
+  // === PROFILE INFO ===
   fullName          String
   headline          String?
   location          String?
   profileUrl        String
   photoUrl          String?
+  linkedInId        String?       // LinkedIn's internal ID
+  publicIdentifier  String?       // LinkedIn username (e.g., "john-doe-123")
   
-  // Extracted Details
+  // === CURRENT ROLE ===
   currentPosition   String?
   currentCompany    String?
-  experienceYears   Int?
-  skills            Json?
-  experience        Json?
-  education         Json?
+  currentCompanyLogo String?      // Company logo URL
+  currentJobDuration String?      // "2 yrs 3 mos"
+  experienceYears   Int?          // Total years of experience
   
-  // Contact Info
+  // === DETAILED EXPERIENCE ===
+  skills            Json?         // Array of skill objects: [{name, endorsements?}]
+  experience        Json?         // Array of work history
+  education         Json?         // Array of education
+  certifications    Json?         // NEW: Array of certifications
+  languages         Json?         // NEW: Array of languages
+  
+  // === CONTACT INFO ===
   email             String?
   phone             String?
   hasContactInfo    Boolean       @default(false)
   
-  // === STRUCTURED SCORING RUBRIC ===
+  // === LINKEDIN PROFILE STATS ===
+  connections       Int?          // Number of connections
+  followers         Int?          // Number of followers
+  isPremium         Boolean       @default(false)
+  isVerified        Boolean       @default(false)
+  isOpenToWork      Boolean       @default(false)
+  
+  // === STRUCTURED SCORING (100 points total) ===
   matchScore        Float         @default(0)      // Total (0-100)
-  skillsScore       Float         @default(0)      // 0-25
-  experienceScore   Float         @default(0)      // 0-25
-  industryScore     Float         @default(0)      // 0-25
-  titleScore        Float         @default(0)      // 0-25
-  matchReason       String?       @db.Text
+  skillsScore       Float         @default(0)      // 0-30 (Required skills match)
+  experienceScore   Float         @default(0)      // 0-25 (Experience level)
+  industryScore     Float         @default(0)      // 0-20 (Industry relevance)
+  titleScore        Float         @default(0)      // 0-15 (Title/seniority fit)
+  niceToHaveScore   Float         @default(0)      // 0-10 (Bonus skills)
+  matchReason       String?       @db.Text          // AI-generated reasoning
+  
+  // === SKILL MATCHING DETAILS (For recruiters to see) ===
+  matchedSkills     Json?         // NEW: Array of matched required skills
+  missingSkills     Json?         // NEW: Array of missing required skills
+  bonusSkills       Json?         // NEW: Array of matched nice-to-have skills
+  
+  // === EXPERIENCE INSIGHTS ===
+  relevantYears     Int?          // NEW: Years of RELEVANT experience (vs total)
+  seniorityLevel    String?       // NEW: "Entry", "Mid", "Senior", "Lead", "Executive"
+  industryMatch     String?       // NEW: Specific industry from their background
+  
+  // === SCORING METADATA ===
   isScored          Boolean       @default(false)
+  scoringVersion    String?       // NEW: Track which scoring version was used
   
   // === DEDUPLICATION ===
-  isDuplicate       Boolean       @default(false)  // Found in user's other jobs
-  firstSeenJobId    String?                        // First job where seen
+  isDuplicate       Boolean       @default(false)
+  firstSeenJobId    String?
+  duplicateCount    Int           @default(0)      // NEW: How many times seen
   
-  // Metadata
-  batchNumber       Int           @default(0)      // Which batch this came from
-  rawData           Json?
+  // === METADATA ===
+  batchNumber       Int           @default(0)
+  rawData           Json?         // Store full raw data for debugging
   scrapedAt         DateTime      @default(now())
   scoredAt          DateTime?
+  updatedAt         DateTime      @updatedAt
   
   // Relations
   sourcingJob       SourcingJob   @relation(fields: [sourcingJobId], references: [id], onDelete: Cascade)
   
   @@unique([sourcingJobId, profileUrl])
-  @@index([sourcingJobId, matchScore])
-  @@index([profileUrl])  // For deduplication check
+  @@index([sourcingJobId, matchScore(sort: Desc)])
+  @@index([profileUrl])
   @@index([batchNumber])
+  @@index([seniorityLevel])
+  @@index([isOpenToWork])
 }

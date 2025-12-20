@@ -4,14 +4,29 @@ export const createSourcingJobSchema = z.object({
   title: z.string().min(3).max(200),
   jobDescription: z.string().min(50).max(5000),
   maxCandidates: z.number().int().min(10).max(100).default(50),
+  
+  // All job requirements stored as a single object
+  jobRequirements: z.object({
+    requiredSkills: z.string().min(3).max(1000),
+    niceToHave: z.string().max(1000).optional().default(""),
+    yearsOfExperience: z.string().optional().default(""),
+    location: z.string().max(200).optional().default(""),
+    industry: z.string().optional().default(""),
+    educationLevel: z.string().optional().default(""),
+    companyType: z.string().optional().default(""),
+  }),
 });
 
 export const linkedInSearchFiltersSchema = z.object({
-  keywords: z.array(z.string()).min(1),
-  titles: z.array(z.string()).min(1),
-  experienceYears: z.string().optional(),
-  location: z.string().optional(),
-  companies: z.array(z.string()).optional(),
+  searchQuery: z.string().optional(),
+  currentJobTitles: z.array(z.string()).optional(),
+  pastJobTitles: z.array(z.string()).optional(),
+  locations: z.array(z.string()).optional(),
+  currentCompanies: z.array(z.string()).optional(),
+  industryIds: z.array(z.number()).optional(),
+  totalYearsOfExperience: z.array(z.number()).optional(),
+  maxItems: z.number().optional(),
+  takePages: z.number().optional(),
 });
 
 export const structuredCandidateSchema = z.object({
@@ -45,12 +60,13 @@ export const structuredCandidateSchema = z.object({
 
 // === NEW: STRUCTURED SCORING RUBRIC ===
 export const candidateScoreSchema = z.object({
-  skillsScore: z.number().min(0).max(25),
+  skillsScore: z.number().min(0).max(30),
   experienceScore: z.number().min(0).max(25),
-  industryScore: z.number().min(0).max(25),
-  titleScore: z.number().min(0).max(25),
+  industryScore: z.number().min(0).max(20),
+  titleScore: z.number().min(0).max(15),
+  niceToHaveScore: z.number().min(0).max(10),
   totalScore: z.number().min(0).max(100),
-  reasoning: z.string().min(20).max(500),
+  reasoning: z.string(),
 });
 
 export type CandidateScore = z.infer<typeof candidateScoreSchema>;

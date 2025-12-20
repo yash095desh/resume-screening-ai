@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { processSourcingJobWithCheckpoints } from "@/lib/processing/pipeline-processor";
+import { processSourcingJobWithCheckpoints } from "@/lib/processing/pipeline-processor-v2";
 
 const STUCK_THRESHOLD_MINUTES = 5; // No activity for 5+ minutes = stuck
 const MAX_RETRIES = 3;
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const stuckJobs = await prisma.sourcingJob.findMany({
       where: {
         status: {
-          in: ["FORMATTING_JD", "SEARCHING_PROFILES", "SCRAPING_PROFILES", "SCORING"],
+          in: ["FORMATTING_JD", "SEARCHING_PROFILES", "SCRAPING_PROFILES", "PARSING_PROFILES","SAVING_PROFILES","SCORING_PROFILES","RATE_LIMITED"],
         },
         lastActivityAt: {
           lt: stuckThreshold,

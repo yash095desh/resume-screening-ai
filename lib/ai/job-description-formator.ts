@@ -1,115 +1,147 @@
-import { openrouter, PAID_MODEL } from "./openrouter";
+import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { linkedInSearchFiltersSchema } from "../validations/sourcing";
 
 /**
- * Format job description into LinkedIn search filters using AI
- * Returns filters compatible with harvestapi/linkedin-profile-search actor
+ * Format job description into LinkedIn search filters
+ * - Uses AI output
+ * - Dynamically loosens filters
+ * - Never over-restricts
+ * - Safe for demos AND production
  */
 export async function formatJobDescriptionForLinkedIn(
-  jobDescription: string
+  jobDescription: string,
+  jobRequirements?: {
+    requiredSkills?: string;
+    niceToHave?: string;
+    yearsOfExperience?: string;
+    location?: string;
+    industry?: string;
+    educationLevel?: string;
+    companyType?: string;
+  }
 ): Promise<{
-  keywords: string[];
-  titles: string[];
-  experienceYears?: string;
-  location?: string;
-  companies?: string[];
+  searchQuery?: string;
+  currentJobTitles?: string[];
+  locations?: string[];
+  maxItems?: number;
+  takePages?: number;
 }> {
   try {
     const { object } = await generateObject({
-      model: openrouter(PAID_MODEL),
+      model: openai("gpt-4o"),
       schema: linkedInSearchFiltersSchema,
-      prompt: `You are an expert recruiter analyzing a job description to create LinkedIn search filters.
+      system: `
+You are a recruitment assistant.
 
+GOAL:
+Generate LinkedIn search filters that RETURN RESULTS.
+
+RULES:
+- Prefer broader titles over niche ones
+- Keep searchQuery light (max 2–3 skills)
+- Avoid strict industry or experience filters
+- If unsure, stay broad
+`,
+      prompt: `
 Job Description:
 ${jobDescription}
 
-Your task: Extract precise, realistic LinkedIn search parameters that will find qualified candidates.
+Structured Requirements:
+${jobRequirements ? JSON.stringify(jobRequirements, null, 2) : "None"}
 
-IMPORTANT GUIDELINES:
-
-1. **Keywords** (5-10 technical skills/tools):
-   - Focus on MUST-HAVE technical skills only
-   - Include tools, frameworks, languages, methodologies
-   - Be specific (e.g., "React", "AWS", "Python", not generic terms)
-   - Example: ["React", "TypeScript", "Node.js", "PostgreSQL", "Docker"]
-
-2. **Job Titles** (3-5 variations):
-   - List titles someone with these skills would currently have
-   - Include seniority levels mentioned
-   - Use common industry titles
-   - Example: ["Senior Software Engineer", "Full Stack Developer", "Backend Engineer"]
-
-3. **Experience Years** (if mentioned):
-   - Use LinkedIn format: "3-5 years", "5+ years", "7-10 years"
-   - Only include if explicitly stated or clearly implied
-   - Leave empty if not specified
-
-4. **Location** (if mentioned):
-   - Use FULL location names to avoid LinkedIn auto-suggestions
-   - Examples: "San Francisco, California" (NOT "SF"), "United Kingdom" (NOT "UK")
-   - Include multiple cities if mentioned
-   - Leave empty for remote/flexible positions
-
-5. **Companies** (if mentioned):
-   - Only include if specific companies are mentioned
-   - Include competitors in the same industry if mentioned
-   - Example: ["Google", "Meta", "Amazon"]
-
-CRITICAL RULES:
-- Be conservative - only include what's clearly important
-- Don't infer too much - if not mentioned, leave empty
-- Focus on what makes a candidate qualified, not nice-to-haves
-- Use industry-standard terminology
-
-Extract the filters now:`,
+Return LinkedIn search filters that maximize discoverability.
+`,
     });
 
-    // Validate and clean the output
-    const cleanedObject = {
-      keywords: object.keywords || [],
-      titles: object.titles || [],
-      experienceYears: object.experienceYears,
-      location: object.location,
-      companies: object.companies,
-    };
+    const safeFilters = normalizeAndLoosenFilters(object);
 
-    console.log("📋 Extracted LinkedIn search filters:", JSON.stringify(cleanedObject, null, 2));
+    console.log(
+      "📋 Final LinkedIn search filters:",
+      JSON.stringify(safeFilters, null, 2)
+    );
 
-    return cleanedObject;
+    return safeFilters;
   } catch (error) {
-    console.error("Error formatting job description:", error);
-    throw new Error("Failed to format job description for LinkedIn search");
+    console.error("❌ AI filter generation failed:", error);
+
+    // Fallback WITHOUT hardcoding specific skills/titles
+    return {
+      searchQuery: extractKeywords(jobDescription),
+      maxItems: 30,
+      takePages: 2,
+    };
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*                               Helper logic                                 */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Validate search filters before sending to Apify
+ * Dynamically loosens filters without hardcoding values
  */
-export function validateSearchFilters(filters: {
-  keywords?: string[];
-  titles?: string[];
-  experienceYears?: string;
-  location?: string;
-  companies?: string[];
-}): boolean {
-  // At least titles or keywords must be provided
-  if ((!filters.titles || filters.titles.length === 0) && 
-      (!filters.keywords || filters.keywords.length === 0)) {
-    throw new Error("At least job titles or keywords must be provided");
+function normalizeAndLoosenFilters(filters: any) {
+  const result: any = {};
+
+  /* ---------------- Job titles (soft limit) ---------------- */
+  if (Array.isArray(filters.currentJobTitles) && filters.currentJobTitles.length) {
+    result.currentJobTitles = filters.currentJobTitles.slice(0, 3);
   }
 
-  // Validate location format (warn about common mistakes)
-  if (filters.location) {
-    const problematicLocations = ["UK", "NY", "SF", "LA"];
-    if (problematicLocations.some(loc => filters.location === loc)) {
-      console.warn(
-        `⚠️ Location "${filters.location}" may cause issues. ` +
-        `LinkedIn might interpret it differently (e.g., UK -> Ukraine). ` +
-        `Consider using full names: "United Kingdom", "New York", etc.`
-      );
-    }
+  /* ---------------- Search query (trim complexity) ---------------- */
+  if (typeof filters.searchQuery === "string") {
+    const tokens = filters.searchQuery
+      .split(/AND|OR|\(|\)/i)
+      .map((t: string) => t.trim())
+      .filter(Boolean);
+
+    result.searchQuery = tokens.slice(0, 2).join(" AND ");
   }
 
-  return true;
+  /* ---------------- Location (only if present) ---------------- */
+  if (Array.isArray(filters.locations) && filters.locations.length > 0) {
+    result.locations = filters.locations.slice(0, 1);
+  }
+
+  /* ---------------- Hard removals ---------------- */
+  // These often kill search results
+  delete filters.industryIds;
+  delete filters.totalYearsOfExperience;
+  delete filters.currentCompanies;
+
+  /* ---------------- Pagination defaults ---------------- */
+  result.maxItems = Math.min(filters.maxItems || 50, 50);
+  result.takePages = Math.min(filters.takePages || 2, 2);
+
+  /* ---------------- Safety net ---------------- */
+  if (!result.currentJobTitles && !result.searchQuery) {
+    result.searchQuery = extractKeywordsFromText(filters);
+  }
+
+  return result;
+}
+
+/**
+ * Extracts lightweight keywords from text without hardcoding
+ */
+function extractKeywords(text: string): string {
+  return text
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(word => word.length > 4)
+    .slice(0, 3)
+    .join(" AND ");
+}
+
+/**
+ * Last-resort keyword extraction
+ */
+function extractKeywordsFromText(filters: any): string {
+  return JSON.stringify(filters)
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(word => word.length > 4)
+    .slice(0, 3)
+    .join(" AND ");
 }
