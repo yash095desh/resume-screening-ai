@@ -221,7 +221,8 @@ async function stage1_FormatJobDescription(jobId: string) {
     // ✅ UPDATE THIS: Pass both rawJobDescription AND jobRequirements to AI
     const searchFilters = await formatJobDescriptionForLinkedIn(
       job.rawJobDescription,
-      jobRequirements // Pass the structured requirements
+      jobRequirements, // Pass the structured requirements
+      job.maxCandidates // Pass the max candidates limit
     );
 
     console.log(`✓ AI formatting complete`);

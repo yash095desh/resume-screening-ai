@@ -45,10 +45,10 @@ export default function DashboardLayout({
               </Link>
             </div>
 
-            {/* LinkedIn Sourcing Section */}
+            {/* AI Sourcing Section */}
             <div className="pt-4">
               <p className="text-xs font-semibold text-gray-500 px-4 mb-2">
-                LINKEDIN SOURCING
+                AI SOURCING
               </p>
               <Link
                 href="/sourcing"

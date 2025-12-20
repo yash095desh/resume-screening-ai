@@ -19,7 +19,8 @@ export async function formatJobDescriptionForLinkedIn(
     industry?: string;
     educationLevel?: string;
     companyType?: string;
-  }
+  },
+  maxCandidates?: number
 ): Promise<{
   searchQuery?: string;
   currentJobTitles?: string[];
@@ -54,7 +55,7 @@ Return LinkedIn search filters that maximize discoverability.
 `,
     });
 
-    const safeFilters = normalizeAndLoosenFilters(object);
+    const safeFilters = normalizeAndLoosenFilters(object, maxCandidates);
 
     console.log(
       "📋 Final LinkedIn search filters:",
@@ -66,10 +67,11 @@ Return LinkedIn search filters that maximize discoverability.
     console.error("❌ AI filter generation failed:", error);
 
     // Fallback WITHOUT hardcoding specific skills/titles
+    const fallbackMaxItems = maxCandidates || 30;
     return {
       searchQuery: extractKeywords(jobDescription),
-      maxItems: 30,
-      takePages: 2,
+      maxItems: fallbackMaxItems,
+      takePages: Math.ceil(fallbackMaxItems / 25),
     };
   }
 }
@@ -81,7 +83,7 @@ Return LinkedIn search filters that maximize discoverability.
 /**
  * Dynamically loosens filters without hardcoding values
  */
-function normalizeAndLoosenFilters(filters: any) {
+function normalizeAndLoosenFilters(filters: any, maxCandidates?: number) {
   const result: any = {};
 
   /* ---------------- Job titles (soft limit) ---------------- */
@@ -111,8 +113,10 @@ function normalizeAndLoosenFilters(filters: any) {
   delete filters.currentCompanies;
 
   /* ---------------- Pagination defaults ---------------- */
-  result.maxItems = Math.min(filters.maxItems || 50, 50);
-  result.takePages = Math.min(filters.takePages || 2, 2);
+  // Use maxCandidates if provided, otherwise fall back to filters.maxItems or 50
+  const targetMaxItems = maxCandidates || filters.maxItems || 50;
+  result.maxItems = Math.min(targetMaxItems, 100); // Cap at 100 max
+  result.takePages = Math.min(filters.takePages || Math.ceil(result.maxItems / 25), 4);
 
   /* ---------------- Safety net ---------------- */
   if (!result.currentJobTitles && !result.searchQuery) {

@@ -72,10 +72,10 @@ export default async function SourcingJobsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-900">
-            LinkedIn Sourcing Jobs
+            AI Sourcing Jobs
           </h2>
           <p className="text-gray-600 mt-1">
-            Automatically find and score candidates from LinkedIn
+            Automatically find and score top candidates for your roles
           </p>
         </div>
         <Link href="/sourcing/new">
@@ -154,7 +154,7 @@ export default async function SourcingJobsPage() {
               No sourcing jobs yet
             </h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Create your first sourcing job to automatically find and score LinkedIn candidates
+              Create your first sourcing job to automatically find and score candidates
               matching your job description
             </p>
             <Link href="/sourcing/new">

@@ -112,7 +112,7 @@ export default function NewSourcingJobPage() {
             <div>
               <CardTitle className="text-2xl">Create New Sourcing Job</CardTitle>
               <CardDescription className="mt-1">
-                AI will automatically find and score matching LinkedIn candidates
+                AI will automatically find and score matching candidates
               </CardDescription>
             </div>
           </div>
@@ -565,13 +565,13 @@ The more detailed your description, the better the AI can match candidates!"
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">1</span>
               </div>
-              <p>AI analyzes your job requirements and creates optimized LinkedIn search filters</p>
+              <p>AI analyzes your job requirements and creates optimized candidate search filters</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">2</span>
               </div>
-              <p>Automatically searches LinkedIn using skills, experience, location, and industry filters</p>
+              <p>Automatically searches professional networks using skills, experience, location, and industry filters</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">

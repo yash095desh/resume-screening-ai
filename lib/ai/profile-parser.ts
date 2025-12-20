@@ -8,22 +8,30 @@ import { structuredCandidateSchema } from "../validations/sourcing";
  */
 
 const SYSTEM_PROMPT = `
-You are an expert data parser specialized in LinkedIn profiles. Your job is to convert raw LinkedIn profile data into a structured JSON object exactly as defined by the provided schema. 
+You are an expert data parser specialized in LinkedIn profiles. Your job is to convert raw LinkedIn profile data into a structured JSON object exactly as defined by the provided schema.
 
 CRITICAL RULES:
 1. Return a **single JSON object only** — no explanations, no markdown, no extra text.
 2. Include all fields present in the input. Omit only fields that are missing or completely unclear.
 3. Normalize all company, school, and organization names (proper capitalization).
-4. Keep all arrays intact (skills, experience, education, certifications) exactly as-is.
+4. Keep all arrays intact but ensure correct data types:
+   - skills: MUST be array of strings (e.g., ["JavaScript", "React", "Python"])
+   - experience: array of objects with {title, company, duration, description?}
+   - education: array of objects with {degree, school, year?}
 5. Calculate experienceYears if it is missing, using the experience array.
 6. Ensure correct data types:
    - Strings for names, titles, locations
-   - Numbers for experienceYears, connections, followers
-   - Arrays for skills, experience, education, certifications
-   - Booleans for isPremium, isVerified, isOpenToWork
-7. Do not invent or guess any data not present in the profile.
-8. Make output deterministic. Always produce the same structure for the same input.
-9. Use proper JSON formatting, without trailing commas or comments.
+   - Numbers (integers) for experienceYears
+   - Arrays as specified above
+7. For URLs (profileUrl, photoUrl):
+   - MUST be valid complete URLs starting with http:// or https://
+   - If a URL is invalid or missing, omit that field entirely
+8. For email field:
+   - MUST be valid email format (contains @)
+   - If invalid or missing, omit the field entirely
+9. Do not invent or guess any data not present in the profile.
+10. Make output deterministic. Always produce the same structure for the same input.
+11. Use proper JSON formatting, without trailing commas or comments.
 
 If you understand, parse the input profile strictly according to these rules and output only the JSON object.
 `;
@@ -32,7 +40,7 @@ export async function parseProfileWithAI(cleanedProfile: any): Promise<any> {
   try {
     // Validate minimum required data
     if (!cleanedProfile.fullName || !cleanedProfile.profileUrl) {
-      console.warn(`⚠️ Missing required fields, using fallback`);
+      console.warn(`⚠️ Missing required fields (fullName: ${!!cleanedProfile.fullName}, profileUrl: ${!!cleanedProfile.profileUrl}), using fallback`);
       return createFallbackProfile(cleanedProfile);
     }
 
@@ -56,7 +64,13 @@ export async function parseProfileWithAI(cleanedProfile: any): Promise<any> {
       `❌ AI parsing failed for ${cleanedProfile.fullName}:`,
       error.message
     );
-    console.warn(`⚠️ Using manual fallback`);
+
+    // Log the actual error details for debugging
+    if (error.cause) {
+      console.error(`   Cause:`, error.cause);
+    }
+
+    console.warn(`⚠️ Using manual fallback for ${cleanedProfile.fullName}`);
 
     return createFallbackProfile(cleanedProfile);
   }
@@ -71,10 +85,12 @@ function buildParsingPrompt(cleanedProfile: any): string {
 ${JSON.stringify(cleanedProfile, null, 2)}
 
 Extract all available fields. Ensure:
-- fullName and profileUrl are present
+- fullName and profileUrl are REQUIRED and must be present
+- profileUrl and photoUrl MUST be valid complete URLs or omitted
+- email MUST be valid email format or omitted
+- skills MUST be array of strings (not objects)
 - experienceYears is calculated from experience array if not provided
-- Skills are kept as array of objects
-- All data is accurate and properly formatted`;
+- All data types match the schema exactly`;
 }
 
 /**

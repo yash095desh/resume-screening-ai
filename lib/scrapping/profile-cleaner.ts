@@ -21,16 +21,15 @@ export function cleanProfileData(rawProfile: any): any {
     }));
 
   // Extract skills - keep top 50 max (LinkedIn shows endorsements)
+  // Convert to array of strings for schema compatibility
   const skills = (rawProfile.skills || [])
     .filter((s: any) => s && (typeof s === "string" || s.title || s.name))
     .slice(0, 50) // Limit to top 50
     .map((s: any) => {
-      if (typeof s === "string") return { name: s };
-      return {
-        name: s.title || s.name,
-        ...(s.endorsements && { endorsements: s.endorsements }),
-      };
-    });
+      if (typeof s === "string") return s;
+      return s.title || s.name;
+    })
+    .filter(Boolean); // Remove any undefined/null values
 
   // Extract education - keep top 3
   const education = (rawProfile.educations || rawProfile.education || [])

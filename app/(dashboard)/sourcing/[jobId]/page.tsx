@@ -72,7 +72,7 @@ interface Candidate {
   experienceYears: number | null;
   seniorityLevel: string | null;
   
-  skills: Array<{ name: string; endorsements?: number }>;
+  skills: string[]; // Updated to array of strings
   matchedSkills: string[] | null;
   missingSkills: string[] | null;
   bonusSkills: string[] | null;
@@ -913,7 +913,7 @@ function getStatusMessage(status: string): string {
   const messages: Record<string, string> = {
     CREATED: "Initializing pipeline...",
     FORMATTING_JD: "Analyzing job requirements with AI...",
-    SEARCHING_PROFILES: "Searching LinkedIn for matching candidates...",
+    SEARCHING_PROFILES: "Searching for matching candidates...",
     SCRAPING_PROFILES: "Extracting detailed candidate information...",
     SCORING: "AI is evaluating candidate fit...",
     COMPLETED: "All candidates processed successfully!",

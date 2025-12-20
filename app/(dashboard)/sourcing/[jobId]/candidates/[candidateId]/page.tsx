@@ -49,10 +49,11 @@ import {
 } from "lucide-react";
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface Skill {
-  name: string;
-  endorsements?: number;
-}
+// Skills are now just an array of strings
+// interface Skill {
+//   name: string;
+//   endorsements?: number;
+// }
 
 interface Experience {
   title: string;
@@ -99,7 +100,7 @@ interface Candidate {
   experienceYears: number | null;
   
   // Detailed Data
-  skills: Skill[];
+  skills: string[]; // Updated to array of strings
   experience: Experience[];
   education: Education[];
   certifications?: Certification[];
@@ -201,7 +202,7 @@ export default function CandidateDetailPage() {
       currentRole: `${candidate.currentPosition} @ ${candidate.currentCompany}`,
       experience: candidate.experience,
       education: candidate.education,
-      skills: candidate.skills?.map(s => s.name),
+      skills: candidate.skills,
       matchScore: candidate.matchScore,
     };
 
@@ -500,7 +501,7 @@ export default function CandidateDetailPage() {
                     <Alert className="bg-white/60 border-blue-200">
                       <Info className="h-4 w-4 text-blue-600" />
                       <AlertDescription className="text-sm text-blue-900">
-                        Contact information not available. Connect via LinkedIn directly.
+                        Contact information not available. Connect via professional profile directly.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -730,20 +731,15 @@ export default function CandidateDetailPage() {
                       All Skills & Technologies ({candidate.skills.length})
                     </h3>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="flex flex-wrap gap-2">
                     {candidate.skills.map((skill, idx) => (
-                      <div
+                      <Badge
                         key={idx}
-                        className="flex items-center justify-between bg-linear-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg px-4 py-3 hover:shadow-md transition-shadow"
+                        variant="secondary"
+                        className="bg-gradient-to-r from-blue-50 to-purple-50 text-blue-900 border border-blue-200 hover:shadow-md transition-shadow px-4 py-2 text-sm font-medium"
                       >
-                        <span className="font-medium text-sm">{skill.name}</span>
-                        {skill.endorsements && skill.endorsements > 0 && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
-                            <Users className="w-3 h-3 mr-1" />
-                            {skill.endorsements}
-                          </Badge>
-                        )}
-                      </div>
+                        {skill}
+                      </Badge>
                     ))}
                   </div>
                 </div>

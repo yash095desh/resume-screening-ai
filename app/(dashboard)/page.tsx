@@ -101,7 +101,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* LinkedIn Sourcing Feature */}
+        {/* AI Candidate Sourcing Feature */}
         <Card className="border-2 border-purple-200 hover:shadow-lg transition-shadow">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -115,13 +115,13 @@ export default async function DashboardPage() {
               </Link>
             </div>
             <CardTitle className="text-xl mt-4">
-              LinkedIn Sourcing
+              AI Candidate Sourcing
               <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
                 NEW
               </span>
             </CardTitle>
             <CardDescription>
-              Automatically find and score LinkedIn candidates matching your job description
+              Automatically find and score top candidates matching your job description
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -247,7 +247,7 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5 text-purple-600" />
-              Recent LinkedIn Sourcing
+              Recent AI Sourcing
             </CardTitle>
           </CardHeader>
           <CardContent>
