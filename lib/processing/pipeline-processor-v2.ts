@@ -1,5 +1,5 @@
 import { prisma } from "../prisma";
-import { scoreCandidateWithRubric } from "../ai/linkedin-scorer";
+import { scoreCandidatesInParallel } from "../ai/linkedin-scorer";
 import { checkDuplicateCandidate } from "../utils/deduplication";
 import { formatJobDescriptionForLinkedIn } from "../ai/job-description-formator";
 import {
@@ -734,7 +734,7 @@ async function stage5_SaveBatches(jobId: string) {
 async function stage6_ScoreBatches(jobId: string) {
   const stageStart = Date.now();
   console.log(`\n${"─".repeat(80)}`);
-  console.log(`⭐ STAGE 6: SCORE CANDIDATES (BATCHED)`);
+  console.log(`⭐ STAGE 6: SCORE CANDIDATES (PARALLEL PROCESSING)`);
   console.log(`${"─".repeat(80)}`);
 
   try {
@@ -785,40 +785,51 @@ async function stage6_ScoreBatches(jobId: string) {
 
       console.log(`✓ Found ${candidates.length} candidates to score`);
 
+      // ✅ PARALLEL PROCESSING: Score all candidates concurrently
+      const CONCURRENCY_LIMIT = 5; // Process 5 at a time to avoid rate limits
+      const results = await scoreCandidatesInParallel(
+        candidates,
+        job.rawJobDescription,
+        jobRequirements,
+        CONCURRENCY_LIMIT
+      );
+
       let scoredCount = 0;
+      let failedCount = 0;
 
-      // Score each candidate
-      for (const candidate of candidates) {
-        try {
-          const score = await scoreCandidateWithRubric(
-            candidate,
-            job.rawJobDescription,
-            jobRequirements
-          );
-
-          await prisma.linkedInCandidate.update({
-            where: { id: candidate.id },
-            data: {
-              matchScore: score.totalScore,
-              skillsScore: score.skillsScore,
-              experienceScore: score.experienceScore,
-              industryScore: score.industryScore,
-              titleScore: score.titleScore,
-              niceToHaveScore: score.niceToHaveScore, // ✅ ADD THIS
-              matchReason: score.reasoning,
-              isScored: true,
-              scoredAt: new Date(),
-            },
-          });
-          scoredCount++;
-        } catch (error: any) {
-          console.error(
-            `⚠️  Failed to score ${candidate.fullName}: ${error.message}`
-          );
+      // ✅ BATCH UPDATE: Update all scored candidates
+      for (const result of results) {
+        if (result.status === 'success' && result.score) {
+          try {
+            await prisma.linkedInCandidate.update({
+              where: { id: result.candidateId },
+              data: {
+                matchScore: result.score.totalScore,
+                skillsScore: result.score.skillsScore,
+                experienceScore: result.score.experienceScore,
+                industryScore: result.score.industryScore,
+                titleScore: result.score.titleScore,
+                niceToHaveScore: result.score.niceToHaveScore,
+                matchReason: result.score.reasoning,
+                isScored: true,
+                scoredAt: new Date(),
+              },
+            });
+            scoredCount++;
+          } catch (dbError: any) {
+            console.error(`❌ DB update failed for ${result.candidateName}: ${dbError.message}`);
+            failedCount++;
+          }
+        } else {
+          console.error(`❌ Scoring failed for ${result.candidateName}: ${result.error}`);
+          failedCount++;
         }
       }
 
       console.log(`✓ Scored: ${scoredCount}/${candidates.length} candidates`);
+      if (failedCount > 0) {
+        console.log(`⚠️  Failed: ${failedCount}/${candidates.length} candidates`);
+      }
 
       // ✅ CHECKPOINT: Update last scored batch
       await prisma.sourcingJob.update({
