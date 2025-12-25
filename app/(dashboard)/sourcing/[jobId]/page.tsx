@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,23 +34,23 @@ import {
   CheckCircle2,
   XCircle,
   Mail,
-  Phone,
   MapPin,
   Briefcase,
   ExternalLink,
-  Filter,
   Trash2,
   AlertCircle,
   TrendingUp,
   Users,
-  Clock,
   Search,
-  Star,
   Building2,
   Target,
   X,
   RefreshCw,
   Award,
+  Sparkles,
+  Eye,
+  FileText,
+  Calculator,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -92,9 +90,13 @@ interface JobData {
   status: string;
   currentStage?: string;
   totalProfilesFound: number;
+  profilesScraped: number;
+  profilesParsed: number;
+  profilesSaved: number;
   profilesScored: number;
   createdAt: string;
   errorMessage: string | null;
+  lastActivityAt?: string;
   progress: {
     percentage: number;
   };
@@ -126,24 +128,37 @@ export default function SourcingJobDetailPage() {
 
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        console.log("SSE Update received:", data);
 
-        if (data.type === "update") {
-          setJob((prev) => ({
-            ...prev!,
-            status: data.status,
-            currentStage: data.currentStage,
-            totalProfilesFound: data.progress?.totalFound || prev?.totalProfilesFound || 0,
-            profilesScored: data.progress?.scored || prev?.profilesScored || 0,
-            progress: {
-              percentage: data.progress?.percentage || 0,
-            },
-            candidates: data.candidates || prev?.candidates || [],
-          }));
+        if (data.type === "connected") {
+          console.log("SSE connected successfully");
+        } else if (data.type === "update") {
+          setJob((prev) => {
+            const updated = {
+              ...prev!,
+              status: data.status,
+              currentStage: data.currentStage,
+              totalProfilesFound: data.progress?.totalFound ?? prev?.totalProfilesFound ?? 0,
+              profilesScraped: data.progress?.scraped ?? prev?.profilesScraped ?? 0,
+              profilesParsed: data.progress?.parsed ?? prev?.profilesParsed ?? 0,
+              profilesSaved: data.progress?.saved ?? prev?.profilesSaved ?? 0,
+              profilesScored: data.progress?.scored ?? prev?.profilesScored ?? 0,
+              progress: {
+                percentage: data.progress?.percentage ?? prev?.progress?.percentage ?? 0,
+              },
+              candidates: data.candidates || prev?.candidates || [],
+              lastActivityAt: data.lastActivityAt || prev?.lastActivityAt,
+            };
+            console.log("Updated job state:", updated);
+            return updated;
+          });
           setIsLoading(false);
         } else if (data.type === "complete") {
+          console.log("Job complete, closing SSE and fetching final data");
           eventSource?.close();
           fetchJobData();
         } else if (data.type === "error") {
+          console.error("SSE Error:", data.message);
           setError(data.message);
           setIsLoading(false);
           eventSource?.close();
@@ -199,23 +214,23 @@ export default function SourcingJobDetailPage() {
     }
   };
 
-  const handleRetry = async () => {
-    try {
-      setError(null);
+  // const handleRetry = async () => {
+  //   try {
+  //     setError(null);
       
-      const response = await fetch(`/api/sourcing/${jobId}/resume`, {
-        method: "POST",
-      });
+  //     const response = await fetch(`/api/sourcing/${jobId}/retry`, {
+  //       method: "POST",
+  //     });
 
-      if (!response.ok) {
-        throw new Error("Failed to resume job");
-      }
+  //     if (!response.ok) {
+  //       throw new Error("Failed to resume job");
+  //     }
 
-      fetchJobData();
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
+  //     fetchJobData();
+  //   } catch (err: any) {
+  //     setError(err.message);
+  //   }
+  // };
 
   // Filter and sort candidates
   const getFilteredAndSortedCandidates = () => {
@@ -294,7 +309,7 @@ export default function SourcingJobDetailPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
               <span>{error || "Job not found"}</span>
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleRetry}
@@ -302,7 +317,7 @@ export default function SourcingJobDetailPage() {
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
-              </Button>
+              </Button> */}
             </AlertDescription>
           </Alert>
         </div>
@@ -389,7 +404,7 @@ export default function SourcingJobDetailPage() {
               <div className="flex items-center gap-2 px-2.5 py-1 bg-muted rounded-md">
                 <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {getSimpleStatusMessage(job.status)}
+                  {getUserFriendlyStatus(job.currentStage || job.status)}
                 </span>
               </div>
             )}
@@ -410,16 +425,35 @@ export default function SourcingJobDetailPage() {
           </div>
         </div>
 
-        {/* Compact Progress Bar */}
+        {/* Enhanced Progress Bar with Stage Indicator */}
         {isProcessing && (
           <div className="mb-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-muted-foreground">
-                {job.profilesScored} of {job.totalProfilesFound} processed
-              </span>
-              <span className="text-xs font-medium">{job.progress.percentage}%</span>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {getStageIcon(job.currentStage || job.status)}
+                <span className="text-sm font-medium text-foreground">
+                  {getUserFriendlyStatus(job.currentStage || job.status)}
+                </span>
+              </div>
+              <span className="text-sm font-semibold text-primary">{job.progress.percentage}%</span>
             </div>
-            <Progress value={job.progress.percentage} className="h-1" />
+            
+            <Progress value={job.progress.percentage} className="h-2 mb-2" />
+            
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div>
+                {getDetailedProgress(job)}
+              </div>
+              <div className="text-right">
+                {job.totalProfilesFound > 0 ? (
+                  <>
+                    Scraped: {job.profilesScraped} | Parsed: {job.profilesParsed} | Scored: {job.profilesScored}
+                  </>
+                ) : (
+                  "Initializing..."
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -429,7 +463,7 @@ export default function SourcingJobDetailPage() {
             <AlertCircle className="h-3.5 w-3.5" />
             <AlertDescription className="flex items-center justify-between text-xs">
               <span>{job.errorMessage}</span>
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleRetry}
@@ -437,7 +471,7 @@ export default function SourcingJobDetailPage() {
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 Retry
-              </Button>
+              </Button> */}
             </AlertDescription>
           </Alert>
         )}
@@ -751,19 +785,85 @@ function CandidateCard({ candidate, jobId }: { candidate: Candidate; jobId: stri
   );
 }
 
-// Simplified status messages
-function getSimpleStatusMessage(status: string): string {
+// User-friendly status messages
+function getUserFriendlyStatus(stage: string): string {
   const messages: Record<string, string> = {
-    CREATED: "Starting...",
-    FORMATTING_JD: "Analyzing...",
-    SEARCHING_PROFILES: "Finding...",
-    SCRAPING_PROFILES: "Collecting...",
-    PARSING_PROFILES: "Processing...",
-    SAVING_PROFILES: "Saving...",
-    SCORING_PROFILES: "Evaluating...",
+    CREATED: "Initializing AI search...",
+    FORMATTING_JD: "Understanding job requirements...",
+    SEARCHING_PROFILES: "Discovering potential candidates...",
+    SCRAPING_PROFILES: "Gathering candidate information...",
+    PARSING_PROFILES: "Analyzing profiles with AI...",
+    SAVING_PROFILES: "Organizing candidate data...",
+    SCORING_PROFILES: "Calculating match scores...",
+    PROCESSING: "Processing...",
   };
   
-  return messages[status] || "Processing...";
+  return messages[stage] || "Processing...";
+}
+
+// Get icon for current stage
+function getStageIcon(stage: string) {
+  const iconClass = "w-4 h-4 text-primary";
+  
+  switch (stage) {
+    case "CREATED":
+      return <Sparkles className={iconClass} />;
+    case "FORMATTING_JD":
+      return <FileText className={iconClass} />;
+    case "SEARCHING_PROFILES":
+      return <Search className={iconClass} />;
+    case "SCRAPING_PROFILES":
+      return <Users className={iconClass} />;
+    case "PARSING_PROFILES":
+      return <Eye className={iconClass} />;
+    case "SAVING_PROFILES":
+      return <Users className={iconClass} />;
+    case "SCORING_PROFILES":
+      return <Calculator className={iconClass} />;
+    default:
+      return <Loader2 className={`${iconClass} animate-spin`} />;
+  }
+}
+
+// Get detailed progress text
+function getDetailedProgress(job: JobData): string {
+  const stage = job.currentStage || job.status;
+  const total = job.totalProfilesFound;
+  
+  switch (stage) {
+    case "SEARCHING_PROFILES":
+      if (total > 0) {
+        return `Found ${total} potential matches`;
+      }
+      return "Searching for candidates...";
+    
+    case "SCRAPING_PROFILES":
+      if (total > 0) {
+        return `Gathering info from ${job.profilesScraped} of ${total} profiles`;
+      }
+      return "Gathering candidate information...";
+    
+    case "PARSING_PROFILES":
+      if (total > 0) {
+        return `Analyzing ${job.profilesParsed} of ${total} profiles`;
+      }
+      return "Analyzing profiles with AI...";
+    
+    case "SAVING_PROFILES":
+      if (total > 0) {
+        return `Organizing ${job.profilesSaved} of ${total} candidates`;
+      }
+      return "Organizing candidate data...";
+    
+    case "SCORING_PROFILES":
+      if (total > 0) {
+        return `Evaluating ${job.profilesScored} of ${total} candidates`;
+      }
+      return "Calculating match scores...";
+    
+    default:
+      return getUserFriendlyStatus(stage);
+  }
 }
 
 // Loading Skeleton

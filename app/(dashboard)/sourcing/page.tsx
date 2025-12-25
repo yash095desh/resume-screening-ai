@@ -177,7 +177,7 @@ export default async function SourcingJobsPage() {
 
             return (
               <Link key={job.id} href={`/sourcing/${job.id}`}>
-                <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-purple-500">
+                <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-purple-500 mb-1">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between gap-4">
                       {/* Left Section */}

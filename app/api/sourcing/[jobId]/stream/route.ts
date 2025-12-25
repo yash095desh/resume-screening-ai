@@ -88,19 +88,91 @@ export async function GET(
               return;
             }
 
-            // ✅ NO MORE TYPE ASSERTIONS - All fields exist in schema!
-            const updateHash = JSON.stringify({
+            // Create a comprehensive hash to detect ANY meaningful change
+            const currentState = {
               status: latestJob.status,
               stage: latestJob.currentStage,
+              totalFound: latestJob.totalProfilesFound,
               scraped: latestJob.profilesScraped,
               parsed: latestJob.profilesParsed,
               saved: latestJob.profilesSaved,
               scored: latestJob.profilesScored,
-            });
+              candidateCount: latestJob.candidates.length,
+            };
+            
+            const updateHash = JSON.stringify(currentState);
 
-            // Only send if data changed
+            // Send update if anything changed
             if (updateHash !== lastUpdateHash) {
               lastUpdateHash = updateHash;
+              
+              console.log(`[SSE] Change detected:`, currentState);
+
+              // Calculate progress based on current stage and completion
+              const calculateProgress = () => {
+                const stage = latestJob.currentStage;
+                const total = latestJob.totalProfilesFound;
+                
+                let baseProgress = 0;
+                
+                // Get base progress from completed stages
+                switch (stage) {
+                  case "CREATED":
+                    baseProgress = 0;
+                    break;
+                  case "FORMATTING_JD":
+                    baseProgress = 5;
+                    break;
+                  case "SEARCHING_PROFILES":
+                    baseProgress = 15;
+                    break;
+                  case "SCRAPING_PROFILES":
+                    baseProgress = 30;
+                    // Add progress within scraping stage (30% of total progress)
+                    if (total > 0 && latestJob.profilesScraped > 0) {
+                      const stageProgress = Math.round((latestJob.profilesScraped / total) * 30);
+                      baseProgress += stageProgress;
+                      console.log(`[Progress] Scraping: ${latestJob.profilesScraped}/${total} = +${stageProgress}% → ${baseProgress}%`);
+                    }
+                    break;
+                  case "PARSING_PROFILES":
+                    baseProgress = 60;
+                    // Add progress within parsing stage (20% of total progress)
+                    if (total > 0 && latestJob.profilesParsed > 0) {
+                      const stageProgress = Math.round((latestJob.profilesParsed / total) * 20);
+                      baseProgress += stageProgress;
+                      console.log(`[Progress] Parsing: ${latestJob.profilesParsed}/${total} = +${stageProgress}% → ${baseProgress}%`);
+                    }
+                    break;
+                  case "SAVING_PROFILES":
+                    baseProgress = 80;
+                    // Add progress within saving stage (10% of total progress)
+                    if (total > 0 && latestJob.profilesSaved > 0) {
+                      const stageProgress = Math.round((latestJob.profilesSaved / total) * 10);
+                      baseProgress += stageProgress;
+                      console.log(`[Progress] Saving: ${latestJob.profilesSaved}/${total} = +${stageProgress}% → ${baseProgress}%`);
+                    }
+                    break;
+                  case "SCORING_PROFILES":
+                    baseProgress = 90;
+                    // Add progress within scoring stage (10% of total progress)
+                    if (total > 0 && latestJob.profilesScored > 0) {
+                      const stageProgress = Math.round((latestJob.profilesScored / total) * 10);
+                      baseProgress += stageProgress;
+                      console.log(`[Progress] Scoring: ${latestJob.profilesScored}/${total} = +${stageProgress}% → ${baseProgress}%`);
+                    }
+                    break;
+                  default:
+                    console.log(`[Progress] Unknown stage: ${stage}`);
+                    baseProgress = 0;
+                }
+
+                const finalProgress = Math.min(baseProgress, 100);
+                console.log(`[Progress] Stage: ${stage} → Final: ${finalProgress}%`);
+                return finalProgress;
+              };
+
+              const progressPercentage = calculateProgress();
 
               const update = {
                 type: "update",
@@ -112,17 +184,20 @@ export async function GET(
                   parsed: latestJob.profilesParsed,
                   saved: latestJob.profilesSaved,
                   scored: latestJob.profilesScored,
-                  percentage: latestJob.totalProfilesFound > 0
-                    ? Math.round((latestJob.profilesScored / latestJob.totalProfilesFound) * 100)
-                    : 0,
+                  percentage: progressPercentage,
                 },
                 candidates: latestJob.candidates,
                 lastActivityAt: latestJob.lastActivityAt,
               };
 
+              console.log(`[SSE] ✉️  Sending update: ${update.currentStage} @ ${progressPercentage}%`);
+
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(update)}\n\n`)
               );
+            } else {
+              // No changes detected - just continue polling
+              console.log(`[SSE] 👁️  Polling... no changes (Stage: ${latestJob.currentStage})`);
             }
 
             // Close stream when complete
@@ -151,7 +226,7 @@ export async function GET(
               )
             );
           }
-        }, 2000);
+        }, 1000);
 
         // Cleanup on disconnect
         request.signal.addEventListener("abort", () => {
