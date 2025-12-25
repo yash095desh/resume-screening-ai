@@ -1,3 +1,5 @@
+// lib/scrapping/apify-client.ts
+
 import { ApifyClient } from "apify-client";
 import { RateLimitError } from "../errors/rate-limit-error";
 
@@ -16,6 +18,7 @@ export interface LinkedInSearchFilters {
   totalYearsOfExperience?: number[];
   maxItems?: number;
   takePages?: number;
+  _meta?: any;  // ✅ Add to interface but won't be sent to Apify
 }
 
 export interface ProfileSearchResult {
@@ -47,8 +50,11 @@ export async function searchLinkedInProfiles(
   try {
     console.log("🔍 Starting LinkedIn profile search...");
 
+    // ✅ IMPORTANT: Remove _meta before processing (shouldn't go to Apify)
+    const { _meta, ...cleanFilters } = searchFilters;
+
     // ✅ Normalize before sending to Apify
-    const normalizedFilters = normalizeFiltersForApify(searchFilters);
+    const normalizedFilters = normalizeFiltersForApify(cleanFilters);
 
     const actorInput: any = {
       profileScraperMode: "Short",
@@ -105,7 +111,7 @@ export async function searchLinkedInProfiles(
         normalizedFilters.totalYearsOfExperience;
     }
 
-    console.log("🔧 Actor input:", JSON.stringify(actorInput, null, 2));
+    console.log("🔧 Actor input (sending to Apify):", JSON.stringify(actorInput, null, 2));
 
     const run = await client
       .actor("harvestapi/linkedin-profile-search")

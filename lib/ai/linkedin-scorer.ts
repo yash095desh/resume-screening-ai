@@ -3,8 +3,8 @@ import { generateObject } from "ai";
 import { candidateScoreSchema } from "../validations/sourcing";
 
 /**
- * ✅ OPTIMIZED: Score candidate with shortened prompt for faster response
- * Reduced prompt from ~2500 tokens to ~400 tokens (6x faster)
+ * ✅ ENHANCED: Score candidate with skill matching and experience analysis
+ * Now extracts: matchedSkills, missingSkills, bonusSkills, relevantYears, seniorityLevel, industryMatch
  */
 export async function scoreCandidateWithRubric(
   candidate: any,
@@ -26,6 +26,12 @@ export async function scoreCandidateWithRubric(
   niceToHaveScore: number;
   totalScore: number;
   reasoning: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+  bonusSkills: string[];
+  relevantYears: number | null;
+  seniorityLevel: "Entry" | "Mid" | "Senior" | "Lead" | "Executive";
+  industryMatch: string | null;
 }> {
   try {
     const { object } = await generateObject({
@@ -48,24 +54,42 @@ RUBRIC (100 total):
 4. Title (0-15): Similar seniority levels acceptable. Responsibilities matter more than titles.
 5. Bonus (0-10): Any related nice-to-have skills.
 
+SKILL MATCHING RULES:
+- matchedSkills: Required skills found in candidate profile (exact or similar)
+- missingSkills: Required skills NOT found (be strict here)
+- bonusSkills: Nice-to-have skills found (extras that add value)
+
+EXPERIENCE ANALYSIS:
+- relevantYears: Count ONLY years in similar roles/industries (not total career)
+- seniorityLevel: Based on titles (Engineer→Entry, Senior→Senior, Lead/Manager→Lead, Director+→Executive)
+- industryMatch: Primary industry from their background (SaaS, FinTech, Healthcare, etc.)
+
 Default to giving benefit of the doubt. Most sourced candidates should score 60-80.`,
       prompt: `JOB: ${jobDescription}
 
 ${jobRequirements ? `REQUIREMENTS:
-Must-Have: ${jobRequirements.requiredSkills || 'Not specified'}
-Nice-to-Have: ${jobRequirements.niceToHave || 'Not specified'}
-Experience: ${jobRequirements.yearsOfExperience || 'Not specified'}
+Must-Have Skills: ${jobRequirements.requiredSkills || 'Not specified'}
+Nice-to-Have Skills: ${jobRequirements.niceToHave || 'Not specified'}
+Experience Needed: ${jobRequirements.yearsOfExperience || 'Not specified'}
 Industry: ${jobRequirements.industry || 'Any'}` : ''}
 
 CANDIDATE: ${candidate.fullName}
 Position: ${candidate.currentPosition || "N/A"} at ${candidate.currentCompany || "N/A"}
-Experience: ${candidate.experienceYears || "Unknown"} years
-Skills: ${candidate.skills?.join(", ") || "None"}
+Total Experience: ${candidate.experienceYears || "Unknown"} years
+Skills Listed: ${candidate.skills?.join(", ") || "None"}
 Location: ${candidate.location || "N/A"}
 
-History: ${JSON.stringify(candidate.experience || []).substring(0, 500)}
+Work History: ${JSON.stringify(candidate.experience || []).substring(0, 800)}
 
-Score generously. Focus on potential and transferable skills. Provide brief positive reasoning.`,
+INSTRUCTIONS:
+1. Score using the rubric above
+2. Identify matchedSkills, missingSkills, and bonusSkills arrays
+3. Calculate relevantYears (years in similar roles, not total career)
+4. Determine seniorityLevel from job titles
+5. Extract industryMatch from work history
+6. Provide brief positive reasoning (2-3 sentences)
+
+Score generously. Focus on potential and transferable skills.`,
     });
 
     return object;
@@ -76,7 +100,7 @@ Score generously. Focus on potential and transferable skills. Provide brief posi
 }
 
 /**
- * ✅ NEW: Process candidates in parallel with concurrency control
+ * ✅ Process candidates in parallel with concurrency control
  * This prevents overwhelming the API while maximizing throughput
  */
 export async function scoreCandidatesInParallel(
@@ -193,6 +217,12 @@ export async function batchScoreCandidates(
               niceToHaveScore: 0,
               totalScore: 0,
               reasoning: "Scoring failed due to error",
+              matchedSkills: [],
+              missingSkills: [],
+              bonusSkills: [],
+              relevantYears: null,
+              seniorityLevel: "Mid" as const,
+              industryMatch: null,
             },
           };
         }

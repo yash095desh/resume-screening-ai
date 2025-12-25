@@ -1,14 +1,17 @@
+// lib/ai/job-description-formator.ts
+
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
-import { linkedInSearchFiltersSchema } from "../validations/sourcing";
+import { z } from "zod";
 
-/**
- * Format job description into LinkedIn search filters
- * - Uses AI output
- * - Dynamically loosens filters
- * - Never over-restricts
- * - Safe for demos AND production
- */
+
+const linkedInSearchSchema = z.object({
+  searchQuery: z.string().optional().describe("Boolean search query combining top 2-3 skills with AND (e.g., 'React AND Node.js')"),
+  currentJobTitles: z.array(z.string()).describe("Array of 3-5 exact job titles from the job description"),
+  locations: z.array(z.string()).optional().describe("Array of location strings (e.g., 'San Francisco Bay Area', 'New York City Metropolitan Area')"),
+  industryIds: z.array(z.number()).optional().describe("LinkedIn industry IDs: Software Development=4, Internet=6, IT Services=96, Financial Services=43, Healthcare=14, Consulting=11"),
+});
+
 export async function formatJobDescriptionForLinkedIn(
   jobDescription: string,
   jobRequirements?: {
@@ -20,132 +23,107 @@ export async function formatJobDescriptionForLinkedIn(
     educationLevel?: string;
     companyType?: string;
   },
-  maxCandidates?: number
-): Promise<{
-  searchQuery?: string;
-  currentJobTitles?: string[];
-  locations?: string[];
-  maxItems?: number;
-  takePages?: number;
-}> {
+  maxCandidates: number = 20
+) {
   try {
+    console.log("🎨 Formatting job description for LinkedIn search...");
+
     const { object } = await generateObject({
       model: openai("gpt-4o"),
-      schema: linkedInSearchFiltersSchema,
-      system: `
-You are a recruitment assistant.
+      schema: linkedInSearchSchema,
+      system: `You are formatting job requirements for LinkedIn search via Apify harvestapi/linkedin-profile-search actor.
 
-GOAL:
-Generate LinkedIn search filters that RETURN RESULTS.
+CRITICAL INSTRUCTIONS:
 
-RULES:
-- Prefer broader titles over niche ones
-- Keep searchQuery light (max 2–3 skills)
-- Avoid strict industry or experience filters
-- If unsure, stay broad
-`,
-      prompt: `
-Job Description:
+1. searchQuery: 
+   - Extract ONLY the top 2-3 most critical technical skills from requiredSkills
+   - Join with " AND " (e.g., "React AND Node.js AND TypeScript")
+   - Keep it concise - more filters = fewer results
+   - If no technical skills, use the job category (e.g., "Software Engineer")
+
+2. currentJobTitles:
+   - Extract 3-5 EXACT job titles that would appear on LinkedIn
+   - Examples: "Senior Software Engineer", "Full Stack Developer", "Engineering Manager"
+   - Avoid generic titles like "Engineer" or "Developer" alone
+   - Include variations (e.g., both "Senior Engineer" and "Staff Engineer")
+
+3. locations:
+   - Convert to LinkedIn's standard format:
+     * "San Francisco" → "San Francisco Bay Area"
+     * "NYC" or "New York" → "New York City Metropolitan Area"  
+     * "Los Angeles" → "Greater Los Angeles Area"
+     * "Seattle" → "Greater Seattle Area"
+     * "Boston" → "Greater Boston"
+   - If multiple cities mentioned, include all
+
+4. industryIds (use LinkedIn's IDs):
+   - Software/SaaS/Tech/Startup → [4]
+   - Internet/E-commerce → [6]
+   - IT Services/Consulting → [96]
+   - FinTech/Banking/Finance → [43]
+   - Healthcare/Biotech → [14]
+   - Management Consulting → [11]
+   - If unclear, use [4, 6] for tech roles
+
+IMPORTANT: Don't over-filter! We score candidates later. Cast a wide net in search.`,
+      
+      prompt: `Job Description:
 ${jobDescription}
 
-Structured Requirements:
-${jobRequirements ? JSON.stringify(jobRequirements, null, 2) : "None"}
+Job Requirements:
+- Required Skills: ${jobRequirements?.requiredSkills || 'Not specified'}
+- Nice to Have: ${jobRequirements?.niceToHave || 'Not specified'}
+- Location: ${jobRequirements?.location || 'Not specified'}
+- Industry: ${jobRequirements?.industry || 'Not specified'}
+- Years of Experience: ${jobRequirements?.yearsOfExperience || 'Not specified'}
+- Education: ${jobRequirements?.educationLevel || 'Not specified'}
 
-Return LinkedIn search filters that maximize discoverability.
-`,
+Generate LinkedIn search filters that will find relevant candidates.`,
     });
 
-    const safeFilters = normalizeAndLoosenFilters(object, maxCandidates);
+    console.log("✅ AI generated filters:", JSON.stringify(object, null, 2));
 
-    console.log(
-      "📋 Final LinkedIn search filters:",
-      JSON.stringify(safeFilters, null, 2)
-    );
+    // Build search input for your Apify actor
+    const searchInput = {
+      searchQuery: object.searchQuery,
+      currentJobTitles: object.currentJobTitles,
+      locations: object.locations,
+      industryIds: object.industryIds,
+      maxItems: maxCandidates,
+      takePages: Math.ceil(maxCandidates / 25), // 25 results per page
+      
+      // Store metadata for multi-strategy search and post-filtering
+      _meta: {
+        requiredSkills: jobRequirements?.requiredSkills?.split(/[,;]/).map(s => s.trim()).filter(Boolean) || [],
+        niceToHaveSkills: jobRequirements?.niceToHave?.split(/[,;]/).map(s => s.trim()).filter(Boolean) || [],
+        yearsOfExperience: jobRequirements?.yearsOfExperience,
+        educationLevel: jobRequirements?.educationLevel,
+        rawJobDescription: jobDescription,
+      }
+    };
 
-    return safeFilters;
+    console.log("📋 Final search input:", JSON.stringify(searchInput, null, 2));
+    
+    return searchInput;
+    
   } catch (error) {
-    console.error("❌ AI filter generation failed:", error);
-
-    // Fallback WITHOUT hardcoding specific skills/titles
-    const fallbackMaxItems = maxCandidates || 30;
+    console.error("❌ Failed to format job description:", error);
+    
+    // Fallback: Create basic search from skills
+    const skills = jobRequirements?.requiredSkills?.split(/[,;]/).map(s => s.trim()).filter(Boolean) || [];
+    const searchQuery = skills.slice(0, 3).join(" AND ");
+    
+    console.log("⚠️ Using fallback search query:", searchQuery);
+    
     return {
-      searchQuery: extractKeywords(jobDescription),
-      maxItems: fallbackMaxItems,
-      takePages: Math.ceil(fallbackMaxItems / 25),
+      searchQuery: searchQuery || undefined,
+      maxItems: maxCandidates,
+      takePages: Math.ceil(maxCandidates / 25),
+      _meta: {
+        requiredSkills: skills,
+        niceToHaveSkills: [],
+        rawJobDescription: jobDescription,
+      }
     };
   }
-}
-
-/* -------------------------------------------------------------------------- */
-/*                               Helper logic                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Dynamically loosens filters without hardcoding values
- */
-function normalizeAndLoosenFilters(filters: any, maxCandidates?: number) {
-  const result: any = {};
-
-  /* ---------------- Job titles (soft limit) ---------------- */
-  if (Array.isArray(filters.currentJobTitles) && filters.currentJobTitles.length) {
-    result.currentJobTitles = filters.currentJobTitles.slice(0, 3);
-  }
-
-  /* ---------------- Search query (trim complexity) ---------------- */
-  if (typeof filters.searchQuery === "string") {
-    const tokens = filters.searchQuery
-      .split(/AND|OR|\(|\)/i)
-      .map((t: string) => t.trim())
-      .filter(Boolean);
-
-    result.searchQuery = tokens.slice(0, 2).join(" AND ");
-  }
-
-  /* ---------------- Location (only if present) ---------------- */
-  if (Array.isArray(filters.locations) && filters.locations.length > 0) {
-    result.locations = filters.locations.slice(0, 1);
-  }
-
-  /* ---------------- Hard removals ---------------- */
-  // These often kill search results
-  delete filters.industryIds;
-  delete filters.totalYearsOfExperience;
-  delete filters.currentCompanies;
-
-  /* ---------------- Pagination defaults ---------------- */
-  // Use maxCandidates if provided, otherwise fall back to filters.maxItems or 50
-  const targetMaxItems = maxCandidates || filters.maxItems || 50;
-  result.maxItems = Math.min(targetMaxItems, 100); // Cap at 100 max
-  result.takePages = Math.min(filters.takePages || Math.ceil(result.maxItems / 25), 4);
-
-  /* ---------------- Safety net ---------------- */
-  if (!result.currentJobTitles && !result.searchQuery) {
-    result.searchQuery = extractKeywordsFromText(filters);
-  }
-
-  return result;
-}
-
-/**
- * Extracts lightweight keywords from text without hardcoding
- */
-function extractKeywords(text: string): string {
-  return text
-    .toLowerCase()
-    .split(/[\s,]+/)
-    .filter(word => word.length > 4)
-    .slice(0, 3)
-    .join(" AND ");
-}
-
-/**
- * Last-resort keyword extraction
- */
-function extractKeywordsFromText(filters: any): string {
-  return JSON.stringify(filters)
-    .toLowerCase()
-    .split(/[\s,]+/)
-    .filter(word => word.length > 4)
-    .slice(0, 3)
-    .join(" AND ");
 }

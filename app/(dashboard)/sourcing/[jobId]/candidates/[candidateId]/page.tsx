@@ -6,13 +6,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-// import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-// import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
   Mail,
@@ -21,39 +19,28 @@ import {
   Briefcase,
   GraduationCap,
   Award,
-  // ExternalLink,
   AlertCircle,
   Copy,
   CheckCircle2,
   Calendar,
   Building2,
-  // TrendingUp,
   Target,
   Sparkles,
   Globe,
-  Users,
   Star,
   Languages,
   FileText,
   Download,
-  // MessageSquare,
-  Linkedin,
   Clock,
-  BarChart3,
-  Zap,
-  Shield,
-  Info,
-  // ChevronRight,
+  TrendingUp,
   Check,
   X,
+  Activity,
+  BarChart3,
+  AlertTriangle,
+  Lightbulb,
+  ExternalLink,
 } from "lucide-react";
-// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-// Skills are now just an array of strings
-// interface Skill {
-//   name: string;
-//   endorsements?: number;
-// }
 
 interface Experience {
   title: string;
@@ -82,43 +69,34 @@ interface Language {
 
 interface Candidate {
   id: string;
-  
-  // Basic Info
   fullName: string;
   headline: string | null;
   location: string | null;
   profileUrl: string;
   photoUrl: string | null;
-  linkedInId: string | null;
   publicIdentifier: string | null;
   
-  // Current Role
   currentPosition: string | null;
   currentCompany: string | null;
   currentCompanyLogo: string | null;
   currentJobDuration: string | null;
   experienceYears: number | null;
   
-  // Detailed Data
-  skills: string[]; // Updated to array of strings
+  skills: string[];
   experience: Experience[];
   education: Education[];
   certifications?: Certification[];
   languages?: Language[];
   
-  // Contact Info
   email: string | null;
   phone: string | null;
   hasContactInfo: boolean;
   
-  // LinkedIn Stats
   connections: number | null;
   followers: number | null;
   isPremium: boolean;
-  isVerified: boolean;
   isOpenToWork: boolean;
   
-  // Scoring
   matchScore: number;
   skillsScore: number;
   experienceScore: number;
@@ -127,20 +105,32 @@ interface Candidate {
   niceToHaveScore: number;
   matchReason: string | null;
   
-  // Skill Matching
   matchedSkills: string[] | null;
   missingSkills: string[] | null;
   bonusSkills: string[] | null;
   
-  // Experience Insights
   relevantYears: number | null;
   seniorityLevel: string | null;
   industryMatch: string | null;
   
-  // Metadata
   isDuplicate: boolean;
   scrapedAt: string;
   scoredAt: string | null;
+}
+
+interface JobRequirements {
+  requiredSkills?: string[];
+  niceToHaveSkills?: string[];
+  experienceYears?: number;
+  title?: string;
+  description?: string;
+}
+
+interface JobData {
+  id: string;
+  title: string;
+  rawJobDescription: string;
+  jobRequirements?: JobRequirements;
 }
 
 export default function CandidateDetailPage() {
@@ -150,28 +140,31 @@ export default function CandidateDetailPage() {
   const candidateId = params.candidateId as string;
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [job, setJob] = useState<JobData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
-    fetchCandidate();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchData();
   }, [jobId, candidateId]);
 
-  const fetchCandidate = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch(
-        `/api/sourcing/${jobId}/candidates/${candidateId}`
-      );
-      const data = await response.json();
+      const [candidateRes, jobRes] = await Promise.all([
+        fetch(`/api/sourcing/${jobId}/candidates/${candidateId}`),
+        fetch(`/api/sourcing/${jobId}`)
+      ]);
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch candidate");
+      const candidateData = await candidateRes.json();
+      const jobData = await jobRes.json();
+
+      if (!candidateRes.ok) {
+        throw new Error(candidateData.error || "Failed to fetch candidate");
       }
 
-      setCandidate(data);
+      setCandidate(candidateData);
+      setJob(jobData);
       setIsLoading(false);
     } catch (err: any) {
       setError(err.message);
@@ -198,7 +191,6 @@ export default function CandidateDetailPage() {
       location: candidate.location,
       email: candidate.email,
       phone: candidate.phone,
-      linkedIn: candidate.profileUrl,
       currentRole: `${candidate.currentPosition} @ ${candidate.currentCompany}`,
       experience: candidate.experience,
       education: candidate.education,
@@ -206,7 +198,9 @@ export default function CandidateDetailPage() {
       matchScore: candidate.matchScore,
     };
 
-    const blob = new Blob([JSON.stringify(profileData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(profileData, null, 2)], { 
+      type: 'application/json' 
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -215,807 +209,665 @@ export default function CandidateDetailPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Helper: Get experience relevance
+  const getExperienceRelevance = (exp: Experience): 'high' | 'medium' | 'low' => {
+    const title = exp.title.toLowerCase();
+    const jobTitle = job?.title?.toLowerCase() || '';
+    const jobKeywords = job?.jobRequirements?.title?.toLowerCase().split(' ') || [];
+    
+    // High: title matches job title
+    if (title.includes(jobTitle) || jobTitle.includes(title)) {
+      return 'high';
+    }
+    
+    // Medium: has relevant keywords
+    const techKeywords = ['engineer', 'developer', 'architect', 'lead', 'senior', 'manager'];
+    if (techKeywords.some(kw => title.includes(kw))) {
+      return 'medium';
+    }
+    
+    return 'low';
+  };
+
+  // Helper: Calculate skill proficiency (mock - would come from AI in production)
+  const getSkillProficiency = (skill: string): number => {
+    if (candidate?.matchedSkills?.includes(skill)) return 5;
+    if (candidate?.bonusSkills?.includes(skill)) return 4;
+    if (candidate?.skills?.includes(skill)) return 3;
+    return 1;
+  };
+
   if (isLoading) {
     return <LoadingSkeleton />;
   }
 
   if (error || !candidate) {
     return (
-      <div className="max-w-6xl mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || "Candidate not found"}</AlertDescription>
-        </Alert>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto px-6 py-24">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error || "Candidate not found"}</AlertDescription>
+          </Alert>
+        </div>
       </div>
     );
   }
 
+  const getScoreLabel = (score: number) => {
+    if (score >= 90) return { label: "Excellent", color: "text-green-600", bg: "bg-green-50", border: "border-green-200" };
+    if (score >= 75) return { label: "Strong", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" };
+    if (score >= 60) return { label: "Good", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" };
+    return { label: "Fair", color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-200" };
+  };
+
+  const scoreConfig = getScoreLabel(candidate.matchScore);
+
+  // Calculate metrics
+  const requiredSkills = job?.jobRequirements?.requiredSkills || [];
+  const matchedCount = candidate.matchedSkills?.length || 0;
+  const totalRequired = requiredSkills.length || 1;
+  const skillMatchPercentage = (matchedCount / totalRequired) * 100;
+
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Link href={`/sourcing/${jobId}`}>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Candidates
-          </Button>
-        </Link>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={downloadProfile}>
-            <Download className="w-4 h-4 mr-2" />
-            Download Profile
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href={`mailto:${candidate.email}`} target="_blank">
-              <Mail className="w-4 h-4 mr-2" />
-              Send Email
-            </a>
-          </Button>
-          <Button variant="default" size="sm" asChild>
-            <a href={candidate.profileUrl} target="_blank" rel="noopener noreferrer">
-              <Linkedin className="w-4 h-4 mr-2" />
-              View LinkedIn
-            </a>
-          </Button>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <Link href={`/sourcing/${jobId}`}>
+            <Button variant="ghost" size="sm" className="text-muted-foreground h-8">
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+              Back to Candidates
+            </Button>
+          </Link>
+          
+          <div className="flex items-center gap-2">
+            {candidate.email && (
+              <Button variant="outline" size="sm" className="h-8" asChild>
+                <a href={`mailto:${candidate.email}`}>
+                  <Mail className="w-3.5 h-3.5 mr-1.5" />
+                  Email
+                </a>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="h-8" asChild>
+              <a href={candidate.profileUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                View Profile
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={downloadProfile}>
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Export
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Hero Section - Profile Header */}
-      <Card className="border-2 bg-linear-to-br from-blue-50/50 via-purple-50/30 to-pink-50/20">
-        <CardContent className="pt-8">
-          <div className="flex flex-col md:flex-row gap-8">
-            {/* Left: Avatar & Quick Actions */}
-            <div className="flex flex-col items-center md:items-start gap-4">
-              <div className="relative">
-                <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
-                  <AvatarImage
-                    src={candidate.photoUrl || undefined}
-                    alt={candidate.fullName}
-                  />
-                  <AvatarFallback className="text-4xl font-bold bg-linear-to-br from-blue-500 to-purple-600 text-white">
-                    {candidate.fullName
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
-                
-                {/* Status Badges on Avatar */}
-                {candidate.isPremium && (
-                  <div className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-linear-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg border-2 border-background">
-                    <Star className="w-4 h-4 text-white fill-white" />
-                  </div>
-                )}
-                {candidate.isOpenToWork && (
-                  <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-linear-to-br from-green-400 to-green-600 flex items-center justify-center shadow-lg border-2 border-background">
-                    <Target className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                {candidate.isVerified && (
-                  <div className="absolute -bottom-2 -left-2 h-8 w-8 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-lg border-2 border-background">
-                    <Shield className="w-4 h-4 text-white" />
-                  </div>
-                )}
-              </div>
+        {/* Profile Header */}
+        <Card className="shadow-sm border-muted mb-6">
+          <CardContent className="p-6">
+            <div className="grid md:grid-cols-[1fr_280px] gap-6">
+              {/* Left: Profile Info */}
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <Avatar className="h-16 w-16 shrink-0">
+                    <AvatarImage src={candidate.photoUrl || undefined} alt={candidate.fullName} />
+                    <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">
+                      {candidate.fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
 
-              {/* LinkedIn Stats */}
-              <div className="flex gap-4 text-center">
-                {candidate.connections && (
-                  <div>
-                    <div className="text-2xl font-bold text-foreground">
-                      {candidate.connections >= 500 ? '500+' : candidate.connections}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Connections</div>
-                  </div>
-                )}
-                {candidate.followers && (
-                  <div>
-                    <div className="text-2xl font-bold text-foreground">
-                      {candidate.followers}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Followers</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Status Badges */}
-              <div className="flex flex-col gap-2 w-full">
-                {candidate.isOpenToWork && (
-                  <Badge className="bg-green-100 text-green-700 justify-center py-2 border border-green-300">
-                    <Target className="w-3.5 h-3.5 mr-1.5" />
-                    Open to Work
-                  </Badge>
-                )}
-                {candidate.isPremium && (
-                  <Badge className="bg-amber-100 text-amber-700 justify-center py-2 border border-amber-300">
-                    <Star className="w-3.5 h-3.5 mr-1.5" />
-                    Premium Member
-                  </Badge>
-                )}
-                {candidate.isVerified && (
-                  <Badge className="bg-blue-100 text-blue-700 justify-center py-2 border border-blue-300">
-                    <Shield className="w-3.5 h-3.5 mr-1.5" />
-                    Verified
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Center: Main Info */}
-            <div className="flex-1 space-y-4">
-              {/* Name & Headline */}
-              <div>
-                <div className="flex items-start gap-3 mb-2">
-                  <div className="flex-1">
-                    <h1 className="text-4xl font-bold tracking-tight mb-1">
-                      {candidate.fullName}
-                    </h1>
-                    {candidate.seniorityLevel && (
-                      <Badge variant="outline" className="mb-2 text-sm">
-                        {candidate.seniorityLevel} Level
-                      </Badge>
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-2xl font-bold mb-1">{candidate.fullName}</h1>
+                    {candidate.headline && (
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                        {candidate.headline}
+                      </p>
                     )}
+                    
+                    <div className="flex flex-wrap items-center gap-2">
+                      {candidate.seniorityLevel && (
+                        <Badge variant="secondary" className="text-xs">
+                          {candidate.seniorityLevel}
+                        </Badge>
+                      )}
+                      {candidate.isOpenToWork && (
+                        <Badge className="bg-green-50 text-green-700 border-green-200 text-xs">
+                          <Target className="w-3 h-3 mr-1" />
+                          Open to Work
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  {candidate.isDuplicate && (
-                    <Badge variant="secondary" className="bg-orange-100 text-orange-700 mt-1">
-                      Previously Sourced
-                    </Badge>
+                </div>
+
+                {/* Current Role */}
+                {candidate.currentPosition && (
+                  <Card className="bg-muted/50 border-muted">
+                    <CardContent className="p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-sm">{candidate.currentPosition}</h3>
+                          <p className="text-sm text-primary font-medium">{candidate.currentCompany}</p>
+                          {candidate.currentJobDuration && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {candidate.currentJobDuration}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Meta Info */}
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                  {candidate.location && (
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4" />
+                      {candidate.location}
+                    </span>
+                  )}
+                  {candidate.experienceYears !== null && (
+                    <span className="flex items-center gap-1.5">
+                      <Briefcase className="w-4 h-4" />
+                      {candidate.experienceYears} years experience
+                    </span>
                   )}
                 </div>
-                
-                {candidate.headline && (
-                  <p className="text-lg text-muted-foreground leading-relaxed">
-                    {candidate.headline}
-                  </p>
-                )}
-              </div>
 
-              {/* Current Role Card */}
-              {(candidate.currentPosition || candidate.currentCompany) && (
-                <Card className="bg-white/80 border-blue-200">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start gap-3">
-                      {candidate.currentCompanyLogo ? (
-                        <img 
-                          src={candidate.currentCompanyLogo} 
-                          alt={candidate.currentCompany || ""}
-                          className="w-12 h-12 rounded-lg object-contain bg-white p-1 border"
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                          <Building2 className="w-6 h-6 text-white" />
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-foreground">
-                          {candidate.currentPosition}
-                        </h3>
-                        <p className="text-blue-600 font-medium">
-                          {candidate.currentCompany}
-                        </p>
-                        {candidate.currentJobDuration && (
-                          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            {candidate.currentJobDuration}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Meta Info */}
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                {candidate.location && (
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4" />
-                    {candidate.location}
-                  </span>
-                )}
-                {candidate.experienceYears !== null && (
-                  <span className="flex items-center gap-1.5">
-                    <Briefcase className="w-4 h-4" />
-                    {candidate.experienceYears} years total experience
-                  </span>
-                )}
-                {candidate.relevantYears !== null && candidate.relevantYears !== candidate.experienceYears && (
-                  <span className="flex items-center gap-1.5">
-                    <Target className="w-4 h-4" />
-                    {candidate.relevantYears} years relevant
-                  </span>
-                )}
-                {candidate.industryMatch && (
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4" />
-                    {candidate.industryMatch}
-                  </span>
-                )}
-              </div>
-
-              {/* Contact Information */}
-              <Card className="bg-linear-to-r from-blue-50 to-purple-50 border-blue-200">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Mail className="w-4 h-4 text-blue-600" />
-                    <h3 className="text-sm font-semibold text-blue-900">Contact Information</h3>
-                  </div>
-                  
-                  {candidate.hasContactInfo ? (
-                    <div className="space-y-2">
+                {/* Contact Info */}
+                {candidate.hasContactInfo && (
+                  <Card className="border-muted">
+                    <CardContent className="p-3 space-y-2">
                       {candidate.email && (
-                        <div className="flex items-center justify-between gap-2 bg-white/60 rounded-lg px-3 py-2 border border-blue-200">
+                        <div className="flex items-center justify-between gap-2 bg-muted/50 rounded px-3 py-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <Mail className="w-4 h-4 text-blue-600 shrink-0" />
-                            <a
-                              href={`mailto:${candidate.email}`}
-                              className="text-blue-600 hover:underline font-medium truncate"
-                            >
+                            <Mail className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <a href={`mailto:${candidate.email}`} className="text-sm text-primary hover:underline truncate">
                               {candidate.email}
                             </a>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(candidate.email!, "email")}
-                            className="h-8 w-8 p-0 shrink-0"
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(candidate.email!, "email")} className="h-7 w-7 p-0 shrink-0">
                             {copiedField === "email" ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
                             ) : (
-                              <Copy className="w-4 h-4" />
+                              <Copy className="w-3.5 h-3.5" />
                             )}
                           </Button>
                         </div>
                       )}
                       {candidate.phone && (
-                        <div className="flex items-center justify-between gap-2 bg-white/60 rounded-lg px-3 py-2 border border-blue-200">
+                        <div className="flex items-center justify-between gap-2 bg-muted/50 rounded px-3 py-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <Phone className="w-4 h-4 text-blue-600 shrink-0" />
-                            <a
-                              href={`tel:${candidate.phone}`}
-                              className="text-blue-600 hover:underline font-medium"
-                            >
+                            <Phone className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <a href={`tel:${candidate.phone}`} className="text-sm text-primary hover:underline">
                               {candidate.phone}
                             </a>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(candidate.phone!, "phone")}
-                            className="h-8 w-8 p-0 shrink-0"
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(candidate.phone!, "phone")} className="h-7 w-7 p-0 shrink-0">
                             {copiedField === "phone" ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-600" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
                             ) : (
-                              <Copy className="w-4 h-4" />
+                              <Copy className="w-3.5 h-3.5" />
                             )}
                           </Button>
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Right: Match Score */}
+              <div className="space-y-3">
+                <Card className="bg-primary shadow-lg border-0">
+                  <CardContent className="p-5 text-center text-white">
+                    <div className="mb-2">
+                      <Target className="w-5 h-5 mx-auto mb-1 opacity-90" />
+                      <div className="text-xs font-medium opacity-90 uppercase tracking-wide">
+                        Match Score
+                      </div>
                     </div>
-                  ) : (
-                    <Alert className="bg-white/60 border-blue-200">
-                      <Info className="h-4 w-4 text-blue-600" />
-                      <AlertDescription className="text-sm text-blue-900">
-                        Contact information not available. Connect via professional profile directly.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
+                    
+                    <div className="mb-3">
+                      <div className="text-5xl font-black">{Math.round(candidate.matchScore)}</div>
+                      <div className="text-sm opacity-75">/100</div>
+                    </div>
+                    
+                    <Badge variant="secondary" className={`${scoreConfig.bg} ${scoreConfig.color} border ${scoreConfig.border} text-xs`}>
+                      {scoreConfig.label} Match
+                    </Badge>
+                  </CardContent>
+                </Card>
+
+                {/* Score Breakdown */}
+                <Card className="border-muted">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">
+                      Score Components
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <ScoreBar label="Skills" score={candidate.skillsScore} maxScore={30} color="bg-green-500" />
+                    <ScoreBar label="Experience" score={candidate.experienceScore} maxScore={25} color="bg-blue-500" />
+                    <ScoreBar label="Industry" score={candidate.industryScore} maxScore={20} color="bg-purple-500" />
+                    <ScoreBar label="Title" score={candidate.titleScore} maxScore={15} color="bg-amber-500" />
+                    <ScoreBar label="Bonus" score={candidate.niceToHaveScore} maxScore={10} color="bg-pink-500" />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Right: Match Score Card */}
-            <div className="md:w-72 space-y-4">
-              <Card className="bg-linear-to-br from-purple-500 via-blue-500 to-indigo-600 text-white border-0 shadow-2xl">
-                <CardContent className="pt-6 text-center">
-                  <div className="mb-3">
-                    <Target className="w-8 h-8 mx-auto mb-2 opacity-90" />
-                    <div className="text-sm font-medium opacity-90">AI Match Score</div>
-                  </div>
-                  
-                  <div className="relative inline-block mb-4">
-                    <div className="text-7xl font-black tracking-tight">
-                      {Math.round(candidate.matchScore)}
-                    </div>
-                    <div className="text-xl font-bold opacity-75 absolute -right-6 top-2">
-                      /100
-                    </div>
-                  </div>
-                  
-                  <Badge
-                    variant="secondary"
-                    className={`
-                      ${candidate.matchScore >= 90 ? "bg-green-500/20 text-green-100 border-green-400/30" :
-                        candidate.matchScore >= 75 ? "bg-blue-500/20 text-blue-100 border-blue-400/30" :
-                        candidate.matchScore >= 60 ? "bg-yellow-500/20 text-yellow-100 border-yellow-400/30" :
-                        "bg-gray-500/20 text-gray-100 border-gray-400/30"}
-                      text-sm px-4 py-1.5 border
-                    `}
-                  >
-                    {candidate.matchScore >= 90 ? "🎯 Excellent Match" :
-                     candidate.matchScore >= 75 ? "⭐ Strong Match" :
-                     candidate.matchScore >= 60 ? "✓ Good Match" :
-                     "○ Fair Match"}
-                  </Badge>
-                </CardContent>
-              </Card>
-
-              {/* Score Breakdown */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4" />
-                    Score Breakdown
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <ScoreBar
-                    label="Skills Match"
-                    score={candidate.skillsScore}
-                    maxScore={30}
-                    color="green"
-                  />
-                  <ScoreBar
-                    label="Experience"
-                    score={candidate.experienceScore}
-                    maxScore={25}
-                    color="blue"
-                  />
-                  <ScoreBar
-                    label="Industry Fit"
-                    score={candidate.industryScore}
-                    maxScore={20}
-                    color="purple"
-                  />
-                  <ScoreBar
-                    label="Title Match"
-                    score={candidate.titleScore}
-                    maxScore={15}
-                    color="orange"
-                  />
-                  <ScoreBar
-                    label="Bonus Skills"
-                    score={candidate.niceToHaveScore}
-                    maxScore={10}
-                    color="pink"
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Analysis */}
+        {/* AI Match Reason */}
       {candidate.matchReason && (
-        <Card className="border-2 border-purple-200 bg-linear-to-r from-purple-50 via-blue-50 to-indigo-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-purple-900">
-              <Sparkles className="w-5 h-5" />
-              AI Match Analysis
+        <Card className="border-primary/20 bg-primary/5 mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              Why This Match?
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm max-w-none">
-              <p className="text-purple-900 leading-relaxed whitespace-pre-line">
-                {candidate.matchReason}
-              </p>
-            </div>
+            <ul className="space-y-2">
+              {candidate.matchReason.split('\n').filter(line => line.trim()).map((point, idx) => (
+                <li key={idx} className="text-sm text-foreground leading-relaxed flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span className="flex-1">{point.trim()}</span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
 
-      {/* Skills Matching Section - Highlight */}
-      <div className="grid md:grid-cols-3 gap-4">
-        {/* Matched Skills */}
-        {candidate.matchedSkills && candidate.matchedSkills.length > 0 && (
-          <Card className="border-green-200 bg-green-50/50">
+        {/* Tabs */}
+        <Card className="shadow-sm border-muted">
+          <Tabs defaultValue="skills" className="w-full">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2 text-green-900">
-                <CheckCircle2 className="w-4 h-4" />
-                Required Skills Matched ({candidate.matchedSkills.length})
-              </CardTitle>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="skills" className="text-xs">
+                  <Award className="w-3.5 h-3.5 mr-1.5" />
+                  Skills
+                </TabsTrigger>
+                <TabsTrigger value="experience" className="text-xs">
+                  <Briefcase className="w-3.5 h-3.5 mr-1.5" />
+                  Experience
+                </TabsTrigger>
+                <TabsTrigger value="education" className="text-xs">
+                  <GraduationCap className="w-3.5 h-3.5 mr-1.5" />
+                  Education
+                </TabsTrigger>
+                <TabsTrigger value="certifications" className="text-xs">
+                  <Award className="w-3.5 h-3.5 mr-1.5" />
+                  Certs
+                </TabsTrigger>
+                <TabsTrigger value="other" className="text-xs">
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                  Other
+                </TabsTrigger>
+              </TabsList>
             </CardHeader>
+
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {candidate.matchedSkills.map((skill, idx) => (
-                  <Badge 
-                    key={idx} 
-                    className="bg-green-100 text-green-700 border-green-300 hover:bg-green-200"
-                  >
-                    <Check className="w-3 h-3 mr-1" />
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Missing Skills */}
-        {candidate.missingSkills && candidate.missingSkills.length > 0 && (
-          <Card className="border-red-200 bg-red-50/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2 text-red-900">
-                <X className="w-4 h-4" />
-                Missing Required Skills ({candidate.missingSkills.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {candidate.missingSkills.map((skill, idx) => (
-                  <Badge 
-                    key={idx} 
-                    className="bg-red-100 text-red-700 border-red-300"
-                  >
-                    <X className="w-3 h-3 mr-1" />
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Bonus Skills */}
-        {candidate.bonusSkills && candidate.bonusSkills.length > 0 && (
-          <Card className="border-purple-200 bg-purple-50/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2 text-purple-900">
-                <Sparkles className="w-4 h-4" />
-                Bonus Skills ({candidate.bonusSkills.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {candidate.bonusSkills.map((skill, idx) => (
-                  <Badge 
-                    key={idx} 
-                    className="bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-200"
-                  >
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Tabbed Content - Detailed Information */}
-      <Card>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <CardHeader className="pb-3">
-            <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
-              <TabsTrigger value="overview" className="gap-2">
-                <Award className="w-4 h-4" />
-                <span className="hidden sm:inline">All Skills</span>
-                <span className="sm:hidden">Skills</span>
-              </TabsTrigger>
-              <TabsTrigger value="experience" className="gap-2">
-                <Briefcase className="w-4 h-4" />
-                <span className="hidden sm:inline">Experience</span>
-                <span className="sm:hidden">Exp</span>
-              </TabsTrigger>
-              <TabsTrigger value="education" className="gap-2">
-                <GraduationCap className="w-4 h-4" />
-                <span className="hidden sm:inline">Education</span>
-                <span className="sm:hidden">Edu</span>
-              </TabsTrigger>
-              <TabsTrigger value="certifications" className="gap-2">
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Certifications</span>
-                <span className="sm:hidden">Certs</span>
-              </TabsTrigger>
-              <TabsTrigger value="languages" className="gap-2">
-                <Globe className="w-4 h-4" />
-                <span className="hidden sm:inline">Languages</span>
-                <span className="sm:hidden">Lang</span>
-              </TabsTrigger>
-            </TabsList>
-          </CardHeader>
-
-          <CardContent className="pt-0">
-            {/* Overview Tab - All Skills */}
-            <TabsContent value="overview" className="mt-0">
-              {candidate.skills && candidate.skills.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">
-                      All Skills & Technologies ({candidate.skills.length})
-                    </h3>
+              {/* SKILLS TAB */}
+              <TabsContent value="skills" className="mt-0 space-y-6">
+                {/* Skills Match Overview */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold">Skills Match Overview</h3>
+                    <span className="text-sm font-bold text-primary">
+                      {matchedCount}/{totalRequired} Required Skills
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {candidate.skills.map((skill, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="secondary"
-                        className="bg-gradient-to-r from-blue-50 to-purple-50 text-blue-900 border border-blue-200 hover:shadow-md transition-shadow px-4 py-2 text-sm font-medium"
-                      >
-                        {skill}
-                      </Badge>
-                    ))}
+                  <Progress value={skillMatchPercentage} className="h-2 mb-2" />
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round(skillMatchPercentage)}% coverage of required skills
+                  </p>
+                </div>
+
+                {/* Matched Skills */}
+                {candidate.matchedSkills && candidate.matchedSkills.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2 text-green-700">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Matched Skills ({candidate.matchedSkills.length})
+                    </h4>
+                    <div className="grid gap-2">
+                      {candidate.matchedSkills.map((skill, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-green-900">{skill}</span>
+                          <div className="flex gap-0.5">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3 h-3 ${
+                                  i < getSkillProficiency(skill)
+                                    ? "fill-green-600 text-green-600"
+                                    : "text-green-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Missing Skills */}
+                {candidate.missingSkills && candidate.missingSkills.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2 text-red-700">
+                      <AlertTriangle className="w-4 h-4" />
+                      Missing Skills ({candidate.missingSkills.length})
+                    </h4>
+                    <div className="grid gap-2">
+                      {candidate.missingSkills.map((skill, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-red-900">{skill}</span>
+                          <Badge variant="secondary" className="text-xs bg-red-100 text-red-700">
+                            Gap
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Training suggestion */}
+                    <Alert className="bg-blue-50 border-blue-200">
+                      <Lightbulb className="h-4 w-4 text-blue-600" />
+                      <AlertDescription className="text-sm text-blue-900">
+                        <span className="font-semibold">Recommendation:</span> Consider training in {candidate.missingSkills.slice(0, 2).join(' and ')} to fill critical gaps.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                {/* Bonus Skills */}
+                {candidate.bonusSkills && candidate.bonusSkills.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2 text-purple-700">
+                      <Sparkles className="w-4 h-4" />
+                      Bonus Skills ({candidate.bonusSkills.length})
+                    </h4>
+                    <div className="grid gap-2">
+                      {candidate.bonusSkills.map((skill, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-purple-900">{skill}</span>
+                          <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-700">
+                            Extra
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* All Skills List */}
+                {candidate.skills && candidate.skills.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-semibold mb-3">
+                      All Skills ({candidate.skills.length})
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {candidate.skills.map((skill, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* EXPERIENCE TAB */}
+              <TabsContent value="experience" className="mt-0 space-y-6">
+                {/* Experience Overview */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold">Experience Summary</h3>
+                    <div className="text-right">
+                      <div className="text-sm font-bold">{candidate.experienceYears || 0} years total</div>
+                      {candidate.relevantYears && (
+                        <div className="text-xs text-green-600 font-semibold">
+                          {candidate.relevantYears} years relevant
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <EmptyState
-                  icon={Award}
-                  message="No skills information available"
-                />
-              )}
-            </TabsContent>
 
-            {/* Experience Tab */}
-            <TabsContent value="experience" className="mt-0">
-              {candidate.experience && candidate.experience.length > 0 ? (
-                <ScrollArea className="h-[600px] pr-4">
-                  <div className="space-y-6">
-                    {candidate.experience.map((exp, idx) => (
-                      <div key={idx} className="relative pl-8 pb-6 last:pb-0">
-                        {/* Timeline line */}
-                        {idx !== candidate.experience.length - 1 && (
-                          <div className="absolute left-[15px] top-12 bottom-0 w-0.5 bg-linear-to-b from-blue-400 to-purple-400" />
-                        )}
-                        
-                        {/* Timeline dot */}
-                        <div className="absolute left-0 top-0 h-8 w-8 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg border-4 border-background">
-                          <Building2 className="w-4 h-4 text-white" />
-                        </div>
+                {/* Experience Timeline */}
+                {candidate.experience && candidate.experience.length > 0 ? (
+                  <div className="space-y-3">
+                    {candidate.experience.map((exp, idx) => {
+                      const relevance = getExperienceRelevance(exp);
+                      const config = {
+                        high: { 
+                          label: 'Highly Relevant', 
+                          color: 'bg-green-500', 
+                          bgColor: 'bg-green-50',
+                          borderColor: 'border-green-300',
+                          textColor: 'text-green-700'
+                        },
+                        medium: { 
+                          label: 'Relevant', 
+                          color: 'bg-amber-500', 
+                          bgColor: 'bg-amber-50',
+                          borderColor: 'border-amber-300',
+                          textColor: 'text-amber-700'
+                        },
+                        low: { 
+                          label: 'Less Relevant', 
+                          color: 'bg-gray-400', 
+                          bgColor: 'bg-gray-50',
+                          borderColor: 'border-gray-300',
+                          textColor: 'text-gray-600'
+                        }
+                      }[relevance];
 
-                        <Card className="hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
-                          <CardContent className="pt-6">
-                            <div className="space-y-3">
-                              <div>
-                                <h3 className="text-xl font-bold text-foreground">
-                                  {exp.title}
-                                </h3>
-                                <p className="text-lg text-blue-600 font-semibold mt-1">
-                                  {exp.company}
-                                </p>
+                      return (
+                        <Card key={idx} className={`border-l-4 ${config.borderColor.replace('border-', 'border-l-')} ${config.bgColor}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex-1">
+                                <h4 className="text-sm font-semibold">{exp.title}</h4>
+                                <p className="text-sm text-primary font-medium">{exp.company}</p>
                               </div>
-                              
-                              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                                <span className="flex items-center gap-1.5">
-                                  <Calendar className="w-4 h-4" />
-                                  {exp.duration}
+                              <Badge variant="secondary" className={`text-[10px] shrink-0 ${config.bgColor} ${config.textColor}`}>
+                                {config.label}
+                              </Badge>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-2">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {exp.duration}
+                              </span>
+                              {exp.location && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {exp.location}
                                 </span>
-                                {exp.location && (
-                                  <span className="flex items-center gap-1.5">
-                                    <MapPin className="w-4 h-4" />
-                                    {exp.location}
-                                  </span>
-                                )}
-                              </div>
-
-                              {exp.description && (
-                                <div className="pt-2 border-t">
-                                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                                    {exp.description}
-                                  </p>
-                                </div>
                               )}
                             </div>
+
+                            {/* Relevance bar */}
+                            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full ${config.color}`}
+                                style={{ 
+                                  width: relevance === 'high' ? '100%' : relevance === 'medium' ? '60%' : '25%' 
+                                }}
+                              />
+                            </div>
+
+                            {exp.description && (
+                              <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">
+                                {exp.description}
+                              </p>
+                            )}
                           </CardContent>
                         </Card>
-                      </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState icon={Briefcase} message="No experience data available" />
+                )}
+              </TabsContent>
+
+              {/* EDUCATION TAB */}
+              <TabsContent value="education" className="mt-0">
+                {candidate.education && candidate.education.length > 0 ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {candidate.education.map((edu, idx) => (
+                      <Card key={idx} className="shadow-sm border-l-4 border-l-primary">
+                        <CardContent className="p-4">
+                          <div className="flex gap-3">
+                            <div className="shrink-0">
+                              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                                <GraduationCap className="w-6 h-6 text-primary" />
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-sm mb-1">{edu.degree}</h3>
+                              <p className="text-sm text-primary font-medium mb-2">{edu.school}</p>
+                              {edu.year && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {edu.year}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
-                </ScrollArea>
-              ) : (
-                <EmptyState
-                  icon={Briefcase}
-                  message="No work experience information available"
-                />
-              )}
-            </TabsContent>
+                ) : (
+                  <EmptyState icon={GraduationCap} message="No education data available" />
+                )}
+              </TabsContent>
 
-            {/* Education Tab */}
-            <TabsContent value="education" className="mt-0">
-              {candidate.education && candidate.education.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {candidate.education.map((edu, idx) => (
-                    <Card key={idx} className="hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
-                      <CardContent className="pt-6">
-                        <div className="flex gap-4">
-                          <div className="shrink-0">
-                            <div className="h-14 w-14 rounded-full bg-linear-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                              <GraduationCap className="w-7 h-7 text-white" />
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-lg text-foreground mb-1">
-                              {edu.degree}
-                            </h3>
-                            <p className="text-green-600 font-semibold mb-2">
-                              {edu.school}
-                            </p>
-                            {edu.year && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-700">
-                                <Calendar className="w-3 h-3 mr-1" />
-                                {edu.year}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={GraduationCap}
-                  message="No education information available"
-                />
-              )}
-            </TabsContent>
-
-            {/* Certifications Tab */}
-            <TabsContent value="certifications" className="mt-0">
-              {candidate.certifications && candidate.certifications.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {candidate.certifications.map((cert, idx) => (
-                    <Card key={idx} className="hover:shadow-lg transition-shadow border-l-4 border-l-purple-500">
-                      <CardContent className="pt-6">
-                        <div className="flex gap-4">
-                          <div className="shrink-0">
-                            <div className="h-14 w-14 rounded-full bg-linear-to-br from-purple-400 to-indigo-600 flex items-center justify-center shadow-lg">
-                              <Award className="w-7 h-7 text-white" />
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-lg text-foreground mb-1">
-                              {cert.name}
-                            </h3>
-                            <p className="text-purple-600 font-semibold mb-2">
-                              {cert.issuer}
-                            </p>
-                            {cert.year && (
-                              <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                                <Calendar className="w-3 h-3 mr-1" />
-                                Issued {cert.year}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={Award}
-                  message="No certifications available"
-                />
-              )}
-            </TabsContent>
-
-            {/* Languages Tab */}
-            <TabsContent value="languages" className="mt-0">
-              {candidate.languages && candidate.languages.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {candidate.languages.map((lang, idx) => (
-                    <Card key={idx} className="hover:shadow-lg transition-shadow">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <div className="h-12 w-12 rounded-full bg-linear-to-br from-orange-400 to-pink-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
-                            <Languages className="w-6 h-6 text-white" />
-                          </div>
-                          <h3 className="font-bold text-lg text-foreground mb-1">
-                            {lang.name}
-                          </h3>
-                          {lang.level && (
-                            <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                              {lang.level}
+              {/* CERTIFICATIONS TAB */}
+              <TabsContent value="certifications" className="mt-0">
+                {candidate.certifications && candidate.certifications.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {candidate.certifications.map((cert, idx) => (
+                      <Card key={idx} className="shadow-sm border-l-4 border-l-purple-500">
+                        <CardContent className="p-3">
+                          <h4 className="font-semibold text-sm mb-1">{cert.name}</h4>
+                          <p className="text-xs text-purple-600 font-medium mb-1">{cert.issuer}</p>
+                          {cert.year && (
+                            <Badge variant="secondary" className="text-xs bg-purple-50 text-purple-700">
+                              {cert.year}
                             </Badge>
                           )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  icon={Languages}
-                  message="No language information available"
-                />
-              )}
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={Award} message="No certifications available" />
+                )}
+              </TabsContent>
 
-      {/* Footer - Metadata */}
-      <Card className="bg-muted/50">
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                Sourced {new Date(candidate.scrapedAt).toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </span>
-              {candidate.scoredAt && (
-                <span className="flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5" />
-                  Scored {new Date(candidate.scoredAt).toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </span>
-              )}
-            </div>
-            {candidate.publicIdentifier && (
-              <code className="bg-background px-2 py-1 rounded text-xs">
-                linkedin.com/in/{candidate.publicIdentifier}
-              </code>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              {/* OTHER TAB */}
+              <TabsContent value="other" className="mt-0 space-y-6">
+                {/* Languages */}
+                {candidate.languages && candidate.languages.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Languages ({candidate.languages.length})
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {candidate.languages.map((lang, idx) => (
+                        <Card key={idx} className="shadow-sm">
+                          <CardContent className="p-3 text-center">
+                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-2">
+                              <Languages className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <h4 className="font-semibold text-sm">{lang.name}</h4>
+                            {lang.level && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                {lang.level}
+                              </Badge>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="pt-4 border-t">
+                  <h3 className="text-sm font-semibold mb-3">Additional Information</h3>
+                  <div className="space-y-2 text-sm">
+                    {candidate.connections && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Network Size</span>
+                        <span className="font-medium">{candidate.connections >= 500 ? '500+' : candidate.connections} connections</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Profile Added</span>
+                      <span className="font-medium">{new Date(candidate.scrapedAt).toLocaleDateString()}</span>
+                    </div>
+                    {candidate.scoredAt && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Last Scored</span>
+                        <span className="font-medium">{new Date(candidate.scoredAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
+      </div>
     </div>
   );
 }
 
 // Score Bar Component
-function ScoreBar({
-  label,
-  score,
-  maxScore,
-  color,
-}: {
+function ScoreBar({ label, score, maxScore, color }: {
   label: string;
   score: number;
   maxScore: number;
-  color: "green" | "blue" | "purple" | "orange" | "pink";
+  color: string;
 }) {
   const percentage = (score / maxScore) * 100;
-  
-  const colorClasses = {
-    green: "bg-green-500",
-    blue: "bg-blue-500",
-    purple: "bg-purple-500",
-    orange: "bg-orange-500",
-    pink: "bg-pink-500",
-  };
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-muted-foreground">{label}</span>
-        <span className="font-bold text-foreground">
-          {score}/{maxScore}
-        </span>
+        <span className="font-bold text-foreground">{score}/{maxScore}</span>
       </div>
-      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`absolute inset-y-0 left-0 ${colorClasses[color]} rounded-full transition-all duration-500`}
-          style={{ width: `${percentage}%` }}
-        />
+      <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`absolute inset-y-0 left-0 ${color} rounded-full`} style={{ width: `${percentage}%` }} />
       </div>
     </div>
   );
 }
 
-// Empty State Component
+// Empty State
 function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
   return (
-    <div className="text-center py-16">
-      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-        <Icon className="w-8 h-8 text-muted-foreground" />
+    <div className="text-center py-12">
+      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+        <Icon className="w-6 h-6 text-muted-foreground" />
       </div>
-      <p className="text-muted-foreground">{message}</p>
+      <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
 }
@@ -1023,30 +875,27 @@ function EmptyState({ icon: Icon, message }: { icon: any; message: string }) {
 // Loading Skeleton
 function LoadingSkeleton() {
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      <Skeleton className="h-10 w-48" />
-      <Card>
-        <CardContent className="pt-8">
-          <div className="flex gap-8">
-            <Skeleton className="h-32 w-32 rounded-full" />
-            <div className="flex-1 space-y-4">
-              <Skeleton className="h-10 w-96" />
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-20 w-full" />
+    <div className="min-h-screen bg-background">
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        <Skeleton className="h-8 w-32 mb-6" />
+        <Card className="shadow-sm mb-6">
+          <CardContent className="p-6">
+            <div className="grid md:grid-cols-[1fr_280px] gap-6">
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <Skeleton className="h-16 w-16 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-6 w-64" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-20 w-full" />
+              </div>
+              <Skeleton className="h-48 w-full" />
             </div>
-            <Skeleton className="h-48 w-72" />
-          </div>
-        </CardContent>
-      </Card>
-      {[1, 2, 3].map((i) => (
-        <Card key={i}>
-          <CardContent className="pt-6 space-y-3">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
           </CardContent>
         </Card>
-      ))}
+      </div>
     </div>
   );
 }

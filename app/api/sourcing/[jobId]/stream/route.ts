@@ -1,17 +1,14 @@
+// app/api/sourcing/[jobId]/stream/route.ts
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
-/**
- * GET /api/sourcing/[jobId]/stream - SSE stream for real-time updates
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return new Response("Unauthorized", { status: 401 });
     }
@@ -23,29 +20,23 @@ export async function GET(
       where: { id: jobId },
     });
 
-    if (!job) {
-      return new Response("Job not found", { status: 404 });
-    }
-
-    // Verify ownership
-    if (job.userId !== userId) {
+    if (!job || job.userId !== userId) {
       return new Response("Unauthorized", { status: 403 });
     }
 
-    // Create SSE stream
     const encoder = new TextEncoder();
     let isStreamClosed = false;
+    let lastUpdateHash = "";
 
     const stream = new ReadableStream({
       async start(controller) {
         console.log(`📡 SSE stream started for job ${jobId}`);
 
-        // Send initial connection message
+        // Send initial connection
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: "connected" })}\n\n`)
         );
 
-        // Poll database every 2 seconds for updates
         const intervalId = setInterval(async () => {
           if (isStreamClosed) {
             clearInterval(intervalId);
@@ -53,13 +44,13 @@ export async function GET(
           }
 
           try {
-            // Fetch latest job status
             const latestJob = await prisma.sourcingJob.findUnique({
               where: { id: jobId },
               include: {
                 candidates: {
                   where: { isScored: true },
                   orderBy: { matchScore: "desc" },
+                  take: 10,
                   select: {
                     id: true,
                     fullName: true,
@@ -69,15 +60,18 @@ export async function GET(
                     photoUrl: true,
                     currentPosition: true,
                     currentCompany: true,
-                    skills: true,
+                    currentCompanyLogo: true,
                     matchScore: true,
                     skillsScore: true,
                     experienceScore: true,
-                    industryScore: true,
-                    titleScore: true,
+                    seniorityLevel: true,
                     hasContactInfo: true,
                     isDuplicate: true,
-                    batchNumber: true,
+                    isOpenToWork: true,
+                    matchedSkills: true,
+                    bonusSkills: true,
+                    email: true,
+                    phone: true,
                   },
                 },
               },
@@ -94,32 +88,46 @@ export async function GET(
               return;
             }
 
-            // Send status update
-            const update = {
-              type: "update",
+            // ✅ NO MORE TYPE ASSERTIONS - All fields exist in schema!
+            const updateHash = JSON.stringify({
               status: latestJob.status,
-              progress: {
-                totalCandidates: latestJob.totalProfilesFound,
-                scrapedCandidates: latestJob.profilesScraped,
-                scoredCandidates: latestJob.profilesScored,
-                percentage:
-                  latestJob.totalProfilesFound > 0
-                    ? Math.round(
-                        (latestJob.profilesScored / latestJob.totalProfilesFound) * 100
-                      )
+              stage: latestJob.currentStage,
+              scraped: latestJob.profilesScraped,
+              parsed: latestJob.profilesParsed,
+              saved: latestJob.profilesSaved,
+              scored: latestJob.profilesScored,
+            });
+
+            // Only send if data changed
+            if (updateHash !== lastUpdateHash) {
+              lastUpdateHash = updateHash;
+
+              const update = {
+                type: "update",
+                status: latestJob.status,
+                currentStage: latestJob.currentStage ?? "PROCESSING",
+                progress: {
+                  totalFound: latestJob.totalProfilesFound,
+                  scraped: latestJob.profilesScraped,
+                  parsed: latestJob.profilesParsed,
+                  saved: latestJob.profilesSaved,
+                  scored: latestJob.profilesScored,
+                  percentage: latestJob.totalProfilesFound > 0
+                    ? Math.round((latestJob.profilesScored / latestJob.totalProfilesFound) * 100)
                     : 0,
-              },
-              candidates: latestJob.candidates,
-              lastActivityAt: latestJob.lastActivityAt,
-            };
+                },
+                candidates: latestJob.candidates,
+                lastActivityAt: latestJob.lastActivityAt,
+              };
 
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify(update)}\n\n`)
-            );
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(update)}\n\n`)
+              );
+            }
 
-            // If job is complete or failed, close stream
+            // Close stream when complete
             if (latestJob.status === "COMPLETED" || latestJob.status === "FAILED") {
-              console.log(`✅ Job ${jobId} finished. Closing SSE stream.`);
+              console.log(`✅ Job ${jobId} finished. Closing stream.`);
               
               controller.enqueue(
                 encoder.encode(
@@ -143,11 +151,11 @@ export async function GET(
               )
             );
           }
-        }, 2000); // Poll every 2 seconds
+        }, 2000);
 
-        // Cleanup on stream close
+        // Cleanup on disconnect
         request.signal.addEventListener("abort", () => {
-          console.log(`🔌 Client disconnected from SSE stream for job ${jobId}`);
+          console.log(`🔌 Client disconnected from SSE for job ${jobId}`);
           clearInterval(intervalId);
           isStreamClosed = true;
           controller.close();

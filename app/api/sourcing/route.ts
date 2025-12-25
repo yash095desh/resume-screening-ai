@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { createSourcingJobSchema } from "@/lib/validations/sourcing";
-import { processSourcingJobWithCheckpoints } from "@/lib/processing/pipeline-processor-v2";
-import { isRateLimitError } from "@/lib/errors/rate-limit-error";
+import { createSourcingWorkflow } from "@/lib/sourcing/workflow";
 
 /**
  * GET /api/sourcing - Get all sourcing jobs for current user
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
     const total = await prisma.sourcingJob.count({ where });
 
     return NextResponse.json({
-      jobs: jobs.map(job => ({
+      jobs: jobs.map((job) => ({
         id: job.id,
         title: job.title,
         status: job.status,
@@ -78,70 +77,70 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
-
-    // Validate input
     const validatedData = createSourcingJobSchema.parse(body);
 
-    // Create job with proper initial state
+    // Create job
     const job = await prisma.sourcingJob.create({
       data: {
         userId,
         title: validatedData.title,
         rawJobDescription: validatedData.jobDescription,
         maxCandidates: validatedData.maxCandidates,
-        
-        // Store all job requirements as JSON
         jobRequirements: validatedData.jobRequirements,
-        
         status: "CREATED",
         lastActivityAt: new Date(),
-        retryCount: 0,
       },
     });
 
     console.log(`✨ Created sourcing job ${job.id}`);
 
-    // Start processing asynchronously (don't await)
-    processSourcingJobWithCheckpoints(job.id).catch((error) => {
-      console.error(`Failed to process job ${job.id}:`, error);
+    // Create workflow
+    const app = await createSourcingWorkflow();
 
-      // Handle rate limit errors
-      if (isRateLimitError(error)) {
-        console.log(`⏸️  Job ${job.id} hit rate limit: ${error.type}`);
-        // Job status already updated by pipeline processor
-        return;
-      }
-
-      // Update job status on catastrophic failure
-      prisma.sourcingJob.update({
-        where: { id: job.id },
-        data: {
-          status: "FAILED",
-          errorMessage: error instanceof Error ? error.message : "Unknown error",
-          failedAt: new Date(),
-          lastActivityAt: new Date(),
+    // Run asynchronously with checkpointing
+    app.invoke(
+        {
+          jobId: job.id,
+          userId: userId,
+          rawJobDescription: job.rawJobDescription,
+          jobRequirements: job.jobRequirements as any,
+          maxCandidates: job.maxCandidates,
         },
-      }).catch(console.error);
-    });
+        {
+          configurable: {
+            thread_id: job.id, // This enables checkpointing
+          },
+        }
+      )
+      .catch(async (error) => {
+        console.error(`Job ${job.id} failed:`, error);
+
+        await prisma.sourcingJob.update({
+          where: { id: job.id },
+          data: {
+            status: "FAILED",
+            errorMessage: error.message,
+            failedAt: new Date(),
+          },
+        });
+      });
 
     return NextResponse.json(
       {
         id: job.id,
-        status: job.status,
-        message: "Sourcing job created. Processing started.",
+        status: "PROCESSING",
+        message: "Job started",
       },
       { status: 201 }
     );
   } catch (error: any) {
-    console.error("Error creating sourcing job:", error);
+    console.error("Error creating job:", error);
 
-    // Handle Zod validation errors
     if (error.name === "ZodError") {
       return NextResponse.json(
         { error: "Validation failed", details: error.errors },
@@ -149,14 +148,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
-
 
 /**
  * Calculate job progress percentage

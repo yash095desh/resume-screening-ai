@@ -116,59 +116,38 @@ model SourcingJob {
   rawJobDescription     String              @db.Text
   maxCandidates         Int                 @default(50)
   
-  // NEW: Store all job requirements as JSON
-  jobRequirements       Json?               // { requiredSkills, niceToHave, yearsOfExperience, location, industry, educationLevel, companyType }
+  // Job Requirements
+  jobRequirements       Json?
   
-  // === ENHANCED CHECKPOINT SYSTEM ===
-  // Stage 1: JD Formatting
-  searchFilters         Json?               // LinkedIn search filters from AI
-  searchFiltersCreatedAt DateTime?          // When filters were saved
-
-  // Stage 2: Profile Discovery
-  discoveredUrls        Json?               // Array of profile URLs found
-  discoveredUrlsCreatedAt DateTime?         // When URLs were discovered
-
-  // Stage 3: Batch Scraping
-  scrapedProfilesData   Json?               // Store scraped raw data by batch
-  lastScrapedBatch      Int                 @default(0)  // Last batch scraped
-
-  // Stage 4: Batch Parsing
-  parsedProfilesData    Json?               // Store parsed data by batch
-  lastParsedBatch       Int                 @default(0)  // Last batch parsed
-
-  // Stage 5: Batch Saving
-  lastSavedBatch        Int                 @default(0)  // Last batch saved to DB
-
-  // Stage 6: Batch Scoring
-  lastScoredBatch       Int                 @default(0)  // Last batch scored
-
-  // Batch Configuration
-  totalBatches          Int                 @default(0)  // Total batches to process
-
-  // === PROGRESS TRACKING ===
+  // === CHECKPOINT DATA (for resume support) ===
+  searchFilters         Json?               // Stage 1: Format JD
+  discoveredUrls        Json?               // Stage 2: Search
+  scrapedProfilesData   Json?               // Stage 3: Scrape
+  parsedProfilesData    Json?               // Stage 4: Parse
+  
+  // === PROGRESS TRACKING (for SSE UI) ===
   status                SourcingJobStatus   @default(CREATED)
-  currentStage          String?             // Detailed stage info (e.g., "SCRAPING_BATCH_3")
+  currentStage          String?
   totalProfilesFound    Int                 @default(0)
   profilesScraped       Int                 @default(0)
   profilesParsed        Int                 @default(0)
   profilesSaved         Int                 @default(0)
   profilesScored        Int                 @default(0)
-
+  
   // === RATE LIMITING ===
-  rateLimitHitAt        DateTime?           // When rate limit was hit
-  rateLimitResetAt      DateTime?           // When we can retry
-  rateLimitType         String?             // 'apify_search' or 'apify_scrape' or 'openrouter'
-
-  // === CRASH RECOVERY & RETRY ===
-  processingStartedAt   DateTime?
-  lastActivityAt        DateTime?           // Updated after each checkpoint
-  retryAfter            DateTime?           // Don't retry before this time
-  retryCount            Int                 @default(0)
-  maxRetries            Int                 @default(3)
+  rateLimitHitAt        DateTime?
+  rateLimitResetAt      DateTime?
+  rateLimitType         String?
+  
+  // === ERROR HANDLING ===
   errorMessage          String?             @db.Text
   failedAt              DateTime?
+  retryCount            Int                 @default(0)
+  maxRetries            Int                 @default(3)
   
-  // Metadata
+  // === TIMESTAMPS ===
+  processingStartedAt   DateTime?
+  lastActivityAt        DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   completedAt           DateTime?
@@ -178,8 +157,8 @@ model SourcingJob {
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId, status])
-  @@index([lastActivityAt])  // For cron job
-  @@index([status, lastActivityAt])  // For finding stuck jobs
+  @@index([lastActivityAt])
+  @@index([status, lastActivityAt])
 }
 
 model LinkedInCandidate {

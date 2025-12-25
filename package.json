@@ -12,6 +12,9 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.88",
     "@clerk/nextjs": "^6.35.6",
+    "@langchain/core": "^1.1.8",
+    "@langchain/langgraph": "^1.0.7",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.0",
     "@napi-rs/canvas": "^0.1.84",
     "@openrouter/ai-sdk-provider": "^1.3.0",
     "@prisma/client": "^6.18.0",

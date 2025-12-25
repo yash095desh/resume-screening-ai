@@ -59,14 +59,25 @@ export const structuredCandidateSchema = z.object({
 });
 
 // === NEW: STRUCTURED SCORING RUBRIC ===
+
 export const candidateScoreSchema = z.object({
-  skillsScore: z.number().min(0).max(30),
-  experienceScore: z.number().min(0).max(25),
-  industryScore: z.number().min(0).max(20),
-  titleScore: z.number().min(0).max(15),
-  niceToHaveScore: z.number().min(0).max(10),
-  totalScore: z.number().min(0).max(100),
-  reasoning: z.string(),
+  skillsScore: z.number().min(0).max(30).describe("Score for required skills match (0-30 points)"),
+  experienceScore: z.number().min(0).max(25).describe("Score for experience level (0-25 points)"),
+  industryScore: z.number().min(0).max(20).describe("Score for industry relevance (0-20 points)"),
+  titleScore: z.number().min(0).max(15).describe("Score for title/seniority fit (0-15 points)"),
+  niceToHaveScore: z.number().min(0).max(10).describe("Score for bonus nice-to-have skills (0-10 points)"),
+  totalScore: z.number().min(0).max(100).describe("Total score (sum of all categories)"),
+  reasoning: z.string().describe("Brief explanation of the scoring (2-3 sentences max)"),
+  
+  // === NEW: Skill Matching Details ===
+  matchedSkills: z.array(z.string()).describe("Array of required skills the candidate has"),
+  missingSkills: z.array(z.string()).describe("Array of required skills the candidate lacks"),
+  bonusSkills: z.array(z.string()).describe("Array of nice-to-have skills the candidate has"),
+  
+  // === NEW: Experience Insights ===
+  relevantYears: z.number().nullable().describe("Years of experience directly relevant to this role"),
+  seniorityLevel: z.enum(["Entry", "Mid", "Senior", "Lead", "Executive"]).describe("Career level based on titles and experience"),
+  industryMatch: z.string().nullable().describe("Specific industry from candidate's background (e.g., 'SaaS', 'FinTech', 'Healthcare')"),
 });
 
 export type CandidateScore = z.infer<typeof candidateScoreSchema>;
