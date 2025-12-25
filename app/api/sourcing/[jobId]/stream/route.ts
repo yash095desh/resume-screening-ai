@@ -120,12 +120,19 @@ export async function GET(
                   case "CREATED":
                     baseProgress = 0;
                     break;
+                    
                   case "FORMATTING_JD":
                     baseProgress = 5;
                     break;
+                    
                   case "SEARCHING_PROFILES":
                     baseProgress = 15;
                     break;
+                    
+                  case "SEARCHING_COMPLETE":
+                    baseProgress = 30; // Search done, ready for scraping
+                    break;
+                    
                   case "SCRAPING_PROFILES":
                     baseProgress = 30;
                     // Add progress within scraping stage (30% of total progress)
@@ -135,6 +142,11 @@ export async function GET(
                       console.log(`[Progress] Scraping: ${latestJob.profilesScraped}/${total} = +${stageProgress}% → ${baseProgress}%`);
                     }
                     break;
+                    
+                  case "SCRAPING_COMPLETE":
+                    baseProgress = 60; // Scraping done, ready for parsing
+                    break;
+                    
                   case "PARSING_PROFILES":
                     baseProgress = 60;
                     // Add progress within parsing stage (20% of total progress)
@@ -144,6 +156,11 @@ export async function GET(
                       console.log(`[Progress] Parsing: ${latestJob.profilesParsed}/${total} = +${stageProgress}% → ${baseProgress}%`);
                     }
                     break;
+                    
+                  case "PARSING_COMPLETE":
+                    baseProgress = 80; // Parsing done, ready for saving
+                    break;
+                    
                   case "SAVING_PROFILES":
                     baseProgress = 80;
                     // Add progress within saving stage (10% of total progress)
@@ -153,6 +170,11 @@ export async function GET(
                       console.log(`[Progress] Saving: ${latestJob.profilesSaved}/${total} = +${stageProgress}% → ${baseProgress}%`);
                     }
                     break;
+                    
+                  case "SAVING_COMPLETE":
+                    baseProgress = 90; // Saving done, ready for scoring
+                    break;
+                    
                   case "SCORING_PROFILES":
                     baseProgress = 90;
                     // Add progress within scoring stage (10% of total progress)
@@ -162,9 +184,25 @@ export async function GET(
                       console.log(`[Progress] Scoring: ${latestJob.profilesScored}/${total} = +${stageProgress}% → ${baseProgress}%`);
                     }
                     break;
+                    
+                  case "SCORING_COMPLETE":
+                    baseProgress = 100; // All done!
+                    break;
+                    
                   default:
-                    console.log(`[Progress] Unknown stage: ${stage}`);
-                    baseProgress = 0;
+                    console.log(`[Progress] ⚠️  Unknown stage: ${stage}, using fallback calculation`);
+                    // Fallback: calculate based on what's actually been done
+                    if (latestJob.profilesScored === total && total > 0) {
+                      baseProgress = 100;
+                    } else if (latestJob.profilesSaved === total && total > 0) {
+                      baseProgress = 90;
+                    } else if (latestJob.profilesParsed === total && total > 0) {
+                      baseProgress = 80;
+                    } else if (latestJob.profilesScraped === total && total > 0) {
+                      baseProgress = 60;
+                    } else {
+                      baseProgress = 0;
+                    }
                 }
 
                 const finalProgress = Math.min(baseProgress, 100);
@@ -226,7 +264,7 @@ export async function GET(
               )
             );
           }
-        }, 1000);
+        }, 2000);
 
         // Cleanup on disconnect
         request.signal.addEventListener("abort", () => {

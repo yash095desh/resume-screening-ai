@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,14 +36,18 @@ import {
   CheckCircle2,
   XCircle,
   Mail,
+  Phone,
   MapPin,
   Briefcase,
   ExternalLink,
+  Filter,
   Trash2,
   AlertCircle,
   TrendingUp,
   Users,
+  Clock,
   Search,
+  Star,
   Building2,
   Target,
   X,
@@ -214,23 +220,23 @@ export default function SourcingJobDetailPage() {
     }
   };
 
-  // const handleRetry = async () => {
-  //   try {
-  //     setError(null);
+  const handleRetry = async () => {
+    try {
+      setError(null);
       
-  //     const response = await fetch(`/api/sourcing/${jobId}/retry`, {
-  //       method: "POST",
-  //     });
+      const response = await fetch(`/api/sourcing/${jobId}/resume`, {
+        method: "POST",
+      });
 
-  //     if (!response.ok) {
-  //       throw new Error("Failed to resume job");
-  //     }
+      if (!response.ok) {
+        throw new Error("Failed to resume job");
+      }
 
-  //     fetchJobData();
-  //   } catch (err: any) {
-  //     setError(err.message);
-  //   }
-  // };
+      fetchJobData();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   // Filter and sort candidates
   const getFilteredAndSortedCandidates = () => {
@@ -309,7 +315,7 @@ export default function SourcingJobDetailPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
               <span>{error || "Job not found"}</span>
-              {/* <Button 
+              <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleRetry}
@@ -317,7 +323,7 @@ export default function SourcingJobDetailPage() {
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
-              </Button> */}
+              </Button>
             </AlertDescription>
           </Alert>
         </div>
@@ -463,7 +469,7 @@ export default function SourcingJobDetailPage() {
             <AlertCircle className="h-3.5 w-3.5" />
             <AlertDescription className="flex items-center justify-between text-xs">
               <span>{job.errorMessage}</span>
-              {/* <Button 
+              <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleRetry}
@@ -471,7 +477,7 @@ export default function SourcingJobDetailPage() {
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 Retry
-              </Button> */}
+              </Button>
             </AlertDescription>
           </Alert>
         )}
@@ -791,10 +797,15 @@ function getUserFriendlyStatus(stage: string): string {
     CREATED: "Initializing AI search...",
     FORMATTING_JD: "Understanding job requirements...",
     SEARCHING_PROFILES: "Discovering potential candidates...",
+    SEARCHING_COMPLETE: "Found candidates, preparing to collect data...",
     SCRAPING_PROFILES: "Gathering candidate information...",
+    SCRAPING_COMPLETE: "Data collected, starting analysis...",
     PARSING_PROFILES: "Analyzing profiles with AI...",
+    PARSING_COMPLETE: "Analysis complete, organizing data...",
     SAVING_PROFILES: "Organizing candidate data...",
+    SAVING_COMPLETE: "Data organized, calculating matches...",
     SCORING_PROFILES: "Calculating match scores...",
+    SCORING_COMPLETE: "Finalizing results...",
     PROCESSING: "Processing...",
   };
   
@@ -811,14 +822,19 @@ function getStageIcon(stage: string) {
     case "FORMATTING_JD":
       return <FileText className={iconClass} />;
     case "SEARCHING_PROFILES":
+    case "SEARCHING_COMPLETE":
       return <Search className={iconClass} />;
     case "SCRAPING_PROFILES":
+    case "SCRAPING_COMPLETE":
       return <Users className={iconClass} />;
     case "PARSING_PROFILES":
+    case "PARSING_COMPLETE":
       return <Eye className={iconClass} />;
     case "SAVING_PROFILES":
+    case "SAVING_COMPLETE":
       return <Users className={iconClass} />;
     case "SCORING_PROFILES":
+    case "SCORING_COMPLETE":
       return <Calculator className={iconClass} />;
     default:
       return <Loader2 className={`${iconClass} animate-spin`} />;
@@ -837,11 +853,17 @@ function getDetailedProgress(job: JobData): string {
       }
       return "Searching for candidates...";
     
+    case "SEARCHING_COMPLETE":
+      return `Found ${total} candidates, preparing to collect data`;
+    
     case "SCRAPING_PROFILES":
       if (total > 0) {
         return `Gathering info from ${job.profilesScraped} of ${total} profiles`;
       }
       return "Gathering candidate information...";
+    
+    case "SCRAPING_COMPLETE":
+      return `Collected data from ${job.profilesScraped} profiles, starting analysis`;
     
     case "PARSING_PROFILES":
       if (total > 0) {
@@ -849,17 +871,26 @@ function getDetailedProgress(job: JobData): string {
       }
       return "Analyzing profiles with AI...";
     
+    case "PARSING_COMPLETE":
+      return `Analyzed ${job.profilesParsed} profiles, organizing data`;
+    
     case "SAVING_PROFILES":
       if (total > 0) {
         return `Organizing ${job.profilesSaved} of ${total} candidates`;
       }
       return "Organizing candidate data...";
     
+    case "SAVING_COMPLETE":
+      return `Organized ${job.profilesSaved} candidates, calculating matches`;
+    
     case "SCORING_PROFILES":
       if (total > 0) {
         return `Evaluating ${job.profilesScored} of ${total} candidates`;
       }
       return "Calculating match scores...";
+    
+    case "SCORING_COMPLETE":
+      return `Scored ${job.profilesScored} candidates, finalizing results`;
     
     default:
       return getUserFriendlyStatus(stage);
