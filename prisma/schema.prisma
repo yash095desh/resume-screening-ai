@@ -161,6 +161,17 @@ model SourcingJob {
   @@index([status, lastActivityAt])
 }
 
+// ============================================
+// NEW ENUM: Interview Readiness Status
+// ============================================
+
+enum InterviewReadinessStatus {
+  NOT_ASSESSED           // Initial state
+  READY_TO_INTERVIEW     // Green light
+  INTERVIEW_WITH_VALIDATION  // Yellow - worth interviewing but validate concerns
+  NOT_RECOMMENDED        // Red - significant gaps
+}
+
 model LinkedInCandidate {
   id                String        @id @default(cuid())
   sourcingJobId     String
@@ -234,6 +245,58 @@ model LinkedInCandidate {
   scrapedAt         DateTime      @default(now())
   scoredAt          DateTime?
   updatedAt         DateTime      @updatedAt
+
+
+
+  // Primary decision field (most important)
+  interviewReadiness        InterviewReadinessStatus @default(NOT_ASSESSED)
+  interviewReadinessReason  String?           @db.Text  // AI-generated reasoning
+  interviewConfidenceScore  Float?            @default(0) // 0-100 confidence in recommendation
+  
+  // Quick summary for recruiters
+  candidateSummary          String?           @db.Text  // 2-3 sentence AI summary
+  keyStrengths              Json?             // Array of top 3 strengths
+  
+  // ============================================
+  //  NEW: SKILL ANALYSIS ENHANCEMENT
+  // ============================================
+  
+  // Already have: matchedSkills, missingSkills, bonusSkills
+  // Add proficiency levels and details
+  
+  skillsProficiency         Json?             // { skill: proficiencyLevel (1-5) }
+  criticalGaps              Json?             // Array of most important missing skills
+  skillGapImpact            String?           // "High", "Medium", "Low"
+  skillsAnalysisSummary     String?           @db.Text  // AI narrative
+  
+  // ============================================
+  //  NEW: EXPERIENCE ANALYSIS ENHANCEMENT
+  // ============================================
+  
+  
+  experienceRelevanceScore  Float?            @default(0) // 0-100
+  seniorityAlignment        String?           // "Perfect", "Higher", "Lower", "Unclear"
+  industryAlignment         String?           // "Exact", "Adjacent", "Different"
+  experienceHighlights      Json?             // Array of most relevant roles
+  experienceAnalysisSummary String?           @db.Text  // AI narrative
+  
+  
+  hasSignificantGaps        Boolean           @default(false)
+  gapsAndTradeoffs          Json?           
+
+  gapsOverallImpact         String?         
+  gapsSummary               String?           @db.Text  // AI narrative
+  
+  
+  interviewFocusAreas       Json?             // Array of focus areas
+  suggestedQuestions        Json?             // Array of specific interview questions
+  redFlags                  Json?             // Array of concerns to probe
+  interviewFocusSummary     String?           @db.Text  // AI narrative
+  
+  
+  aiAnalysisVersion         String?           @default("v3.0") // Track version
+  fullAnalysisGenerated     Boolean           @default(false)  // Flag for new analysis
+  analysisGeneratedAt       DateTime?       
   
   // Relations
   sourcingJob       SourcingJob   @relation(fields: [sourcingJobId], references: [id], onDelete: Cascade)

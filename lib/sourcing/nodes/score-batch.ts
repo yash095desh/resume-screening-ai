@@ -51,7 +51,6 @@ export async function scoreAllCandidates(state: SourcingState) {
   let processedInThisRun = 0;
 
   while (true) {
-    // Get next batch of unscored candidates
     const candidates = await prisma.linkedInCandidate.findMany({
       where: {
         sourcingJobId: state.jobId,
@@ -60,19 +59,16 @@ export async function scoreAllCandidates(state: SourcingState) {
       take: batchSize
     });
 
-    if (candidates.length === 0) {
-      console.log(`✅ No more candidates to score`);
-      break;
-    }
+    if (candidates.length === 0) break;
 
-    console.log(`⭐ Scoring batch of ${candidates.length} candidates...`);
-
+    console.log(`⭐ Scoring batch of ${candidates.length} with full analysis...`);
+    
     try {
       const results = await scoreCandidatesInParallel(
         candidates,
         job.rawJobDescription,
         job.jobRequirements as any,
-        5 // Concurrency limit
+        5 // Concurrency
       );
 
       let batchScoredCount = 0;
@@ -80,11 +76,10 @@ export async function scoreAllCandidates(state: SourcingState) {
       for (const result of results) {
         if (result.status === 'success' && result.score) {
           try {
-            // ✅ ENHANCED: Save all new fields including skill matching and experience analysis
             await prisma.linkedInCandidate.update({
               where: { id: result.candidateId },
               data: {
-                // Core scores
+                // ===== EXISTING FIELDS =====
                 matchScore: result.score.totalScore,
                 skillsScore: result.score.skillsScore,
                 experienceScore: result.score.experienceScore,
@@ -92,35 +87,66 @@ export async function scoreAllCandidates(state: SourcingState) {
                 titleScore: result.score.titleScore,
                 niceToHaveScore: result.score.niceToHaveScore,
                 matchReason: result.score.reasoning,
-                
-                // ✅ NEW: Skill matching details (for Skills Analysis tab)
                 matchedSkills: result.score.matchedSkills || [],
                 missingSkills: result.score.missingSkills || [],
                 bonusSkills: result.score.bonusSkills || [],
-                
-                // ✅ NEW: Experience insights (for Experience Analysis tab)
                 relevantYears: result.score.relevantYears,
                 seniorityLevel: result.score.seniorityLevel,
                 industryMatch: result.score.industryMatch,
                 
-                // Metadata
+                // ===== 🆕 NEW: INTERVIEW READINESS =====
+                interviewReadiness: result.score.interviewReadiness,
+                interviewReadinessReason: result.score.interviewReadinessReason,
+                interviewConfidenceScore: result.score.interviewConfidenceScore,
+                candidateSummary: result.score.candidateSummary,
+                keyStrengths: result.score.keyStrengths,
+                
+                // ===== 🆕 NEW: ENHANCED SKILLS =====
+                skillsProficiency: result.score.skillsProficiency,
+                criticalGaps: result.score.criticalGaps,
+                skillGapImpact: result.score.skillGapImpact,
+                skillsAnalysisSummary: result.score.skillsAnalysisSummary,
+                
+                // ===== 🆕 NEW: ENHANCED EXPERIENCE =====
+                experienceRelevanceScore: result.score.experienceRelevanceScore,
+                seniorityAlignment: result.score.seniorityAlignment,
+                industryAlignment: result.score.industryAlignment,
+                experienceHighlights: result.score.experienceHighlights,
+                experienceAnalysisSummary: result.score.experienceAnalysisSummary,
+                
+                // ===== 🆕 NEW: GAPS & TRADE-OFFS =====
+                hasSignificantGaps: result.score.hasSignificantGaps,
+                gapsAndTradeoffs: result.score.gapsAndTradeoffs,
+                gapsOverallImpact: result.score.gapsOverallImpact,
+                gapsSummary: result.score.gapsSummary,
+                
+                // ===== 🆕 NEW: INTERVIEW FOCUS =====
+                interviewFocusAreas: result.score.interviewFocusAreas,
+                suggestedQuestions: result.score.suggestedQuestions,
+                redFlags: result.score.redFlags,
+                interviewFocusSummary: result.score.interviewFocusSummary,
+                
+                // ===== METADATA =====
                 isScored: true,
                 scoredAt: new Date(),
-                scoringVersion: "v2.0" // Track version for future updates
+                scoringVersion: "v3.0",
+                fullAnalysisGenerated: true,
+                analysisGeneratedAt: new Date()
               }
             });
+            
             batchScoredCount++;
             
-            // Log the enhanced data for monitoring
-            console.log(`   ✓ ${result.candidateName}: ${result.score.totalScore}/100 | ` +
-              `Matched: ${result.score.matchedSkills?.length || 0} | ` +
-              `Missing: ${result.score.missingSkills?.length || 0} | ` +
-              `Level: ${result.score.seniorityLevel} | ` +
-              `Relevant: ${result.score.relevantYears || 0}yrs`
+            // Enhanced logging
+            console.log(
+              `   ✓ ${result.candidateName}: ` +
+              `${result.score.totalScore}/100 | ` +
+              `${result.score.interviewReadiness} | ` +
+              `Confidence: ${result.score.interviewConfidenceScore}%`
             );
             
           } catch (error: any) {
-            console.error(`❌ Failed to update score for ${result.candidateName}:`, error.message);
+            console.error(`❌ Failed to save: ${result.candidateName}`, error.message);
           }
         } else if (result.status === 'failed') {
           console.error(`❌ Scoring failed for ${result.candidateName}:`, result.error);

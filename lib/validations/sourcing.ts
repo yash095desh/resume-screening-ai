@@ -58,26 +58,96 @@ export const structuredCandidateSchema = z.object({
   phone: z.string().optional(),
 });
 
-// === NEW: STRUCTURED SCORING RUBRIC ===
+// ============================================
+// ENHANCED: Candidate Score Schema
+// ============================================
 
 export const candidateScoreSchema = z.object({
-  skillsScore: z.number().min(0).max(30).describe("Score for required skills match (0-30 points)"),
-  experienceScore: z.number().min(0).max(25).describe("Score for experience level (0-25 points)"),
-  industryScore: z.number().min(0).max(20).describe("Score for industry relevance (0-20 points)"),
-  titleScore: z.number().min(0).max(15).describe("Score for title/seniority fit (0-15 points)"),
-  niceToHaveScore: z.number().min(0).max(10).describe("Score for bonus nice-to-have skills (0-10 points)"),
-  totalScore: z.number().min(0).max(100).describe("Total score (sum of all categories)"),
-  reasoning: z.string().describe("Brief explanation of the scoring (2-3 sentences max)"),
+  // Existing fields
+  skillsScore: z.number().min(0).max(30),
+  experienceScore: z.number().min(0).max(25),
+  industryScore: z.number().min(0).max(20),
+  titleScore: z.number().min(0).max(15),
+  niceToHaveScore: z.number().min(0).max(10),
+  totalScore: z.number().min(0).max(100),
+  reasoning: z.string(),
   
-  // === NEW: Skill Matching Details ===
-  matchedSkills: z.array(z.string()).describe("Array of required skills the candidate has"),
-  missingSkills: z.array(z.string()).describe("Array of required skills the candidate lacks"),
-  bonusSkills: z.array(z.string()).describe("Array of nice-to-have skills the candidate has"),
+  // Existing skill matching
+  matchedSkills: z.array(z.string()),
+  missingSkills: z.array(z.string()),
+  bonusSkills: z.array(z.string()),
   
-  // === NEW: Experience Insights ===
-  relevantYears: z.number().nullable().describe("Years of experience directly relevant to this role"),
-  seniorityLevel: z.enum(["Entry", "Mid", "Senior", "Lead", "Executive"]).describe("Career level based on titles and experience"),
-  industryMatch: z.string().nullable().describe("Specific industry from candidate's background (e.g., 'SaaS', 'FinTech', 'Healthcare')"),
+  // Existing experience analysis
+  relevantYears: z.number().nullable(),
+  seniorityLevel: z.enum(["Entry", "Mid", "Senior", "Lead", "Executive"]),
+  industryMatch: z.string().nullable(),
+  
+  // ============================================
+  // 🆕 NEW: Interview Readiness
+  // ============================================
+  interviewReadiness: z.enum([
+    "READY_TO_INTERVIEW",
+    "INTERVIEW_WITH_VALIDATION",
+    "NOT_RECOMMENDED"
+  ]),
+  interviewReadinessReason: z.string(),
+  interviewConfidenceScore: z.number().min(0).max(100),
+  candidateSummary: z.string(),
+  keyStrengths: z.array(z.string()).max(3),
+  
+  // ============================================
+  // 🆕 NEW: Enhanced Skill Analysis
+  // ============================================
+  skillsProficiency: z.number().min(1).max(5),
+  criticalGaps: z.array(z.string()),
+  skillGapImpact: z.enum(["High", "Medium", "Low"]),
+  skillsAnalysisSummary: z.string(),
+  
+  // ============================================
+  // 🆕 NEW: Enhanced Experience Analysis
+  // ============================================
+  experienceRelevanceScore: z.number().min(0).max(100),
+  seniorityAlignment: z.enum(["Perfect", "Higher", "Lower", "Unclear"]),
+  industryAlignment: z.enum(["Exact", "Adjacent", "Different"]),
+  experienceHighlights: z.array(z.object({
+    title: z.string(),
+    company: z.string(),
+    relevance: z.enum(["High", "Medium", "Low"]),
+    reason: z.string()
+  })).max(3),
+  experienceAnalysisSummary: z.string(),
+  
+  // ============================================
+  // 🆕 NEW: Gaps & Trade-offs
+  // ============================================
+  hasSignificantGaps: z.boolean(),
+  gapsAndTradeoffs: z.object({
+    criticalGaps: z.array(z.object({
+      type: z.enum(["skill", "experience", "seniority", "industry"]),
+      gap: z.string(),
+      impact: z.enum(["High", "Medium", "Low"]),
+      mitigation: z.string().optional()
+    })),
+    acceptableTradeoffs: z.array(z.object({
+      tradeoff: z.string(),
+      reasoning: z.string()
+    })),
+    dealBreakers: z.array(z.string())
+  }),
+  gapsOverallImpact: z.enum(["Manageable", "Significant", "Critical"]),
+  gapsSummary: z.string(),
+  
+  // ============================================
+  // 🆕 NEW: Interview Focus Areas
+  // ============================================
+  interviewFocusAreas: z.array(z.object({
+    category: z.string(),
+    question: z.string(),
+    reasoning: z.string()
+  })).min(2).max(5),
+  suggestedQuestions: z.array(z.string()).max(8),
+  redFlags: z.array(z.string()),
+  interviewFocusSummary: z.string()
 });
 
 export type CandidateScore = z.infer<typeof candidateScoreSchema>;
