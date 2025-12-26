@@ -242,12 +242,12 @@ Examples:
                   <SelectValue placeholder="Select experience level..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0-2">0-2 years (Entry Level)</SelectItem>
-                  <SelectItem value="2-4">2-4 years (Junior)</SelectItem>
-                  <SelectItem value="3-5">3-5 years (Mid-Level)</SelectItem>
-                  <SelectItem value="5-8">5-8 years (Senior)</SelectItem>
-                  <SelectItem value="8-12">8-12 years (Lead/Principal)</SelectItem>
-                  <SelectItem value="12+">12+ years (Executive/Architect)</SelectItem>
+                  <SelectItem value="internship">Internship (0 years)</SelectItem>
+                  <SelectItem value="entry">Entry Level (0-2 years)</SelectItem>
+                  <SelectItem value="associate">Associate (2-5 years)</SelectItem>
+                  <SelectItem value="mid-senior">Mid-Senior (5-10 years)</SelectItem>
+                  <SelectItem value="director">Director (10+ years, management)</SelectItem>
+                  <SelectItem value="executive">Executive (C-level, VP+)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-500">

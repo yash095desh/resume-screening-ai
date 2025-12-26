@@ -51,7 +51,7 @@ export async function createSourcingWorkflow() {
     "search_precise",
     (state: SourcingState) => {
       if (state.profileUrls.length >= state.maxCandidates) return "scrape";
-      if (state.searchAttempts < 4) return "broad";
+      if (state.searchAttempts < 3) return "broad";
       return "no_candidates";
     },
     {

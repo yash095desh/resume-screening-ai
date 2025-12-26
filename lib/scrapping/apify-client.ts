@@ -15,11 +15,12 @@ export interface LinkedInSearchFilters {
   locations?: string[];
   currentCompanies?: string[];
   industryIds?: number[];
-  totalYearsOfExperience?: number[];
+  experienceLevels?: string[];        // ✅ ADD THIS
   maxItems?: number;
   takePages?: number;
-  _meta?: any;  // ✅ Add to interface but won't be sent to Apify
+  _meta?: any;
 }
+
 
 export interface ProfileSearchResult {
   profileUrl: string;
@@ -32,11 +33,11 @@ export interface ProfileSearchResult {
  * Normalize filters for Apify compatibility
  * Apify expects string arrays for these fields
  */
+// In normalizeFiltersForApify function:
 function normalizeFiltersForApify(filters: LinkedInSearchFilters) {
   return {
     ...filters,
     industryIds: filters.industryIds?.map(String),
-    totalYearsOfExperience: filters.totalYearsOfExperience?.map(String),
   };
 }
 
@@ -103,12 +104,10 @@ export async function searchLinkedInProfiles(
       actorInput.industryIds = normalizedFilters.industryIds;
     }
 
-    if (
-      normalizedFilters.totalYearsOfExperience &&
-      normalizedFilters.totalYearsOfExperience.length > 0
-    ) {
-      actorInput.totalYearsOfExperience =
-        normalizedFilters.totalYearsOfExperience;
+
+    // In searchLinkedInProfiles, add experienceLevels handling:
+    if (normalizedFilters.experienceLevels && normalizedFilters.experienceLevels.length > 0) {
+      actorInput.experienceLevels = normalizedFilters.experienceLevels;
     }
 
     console.log("🔧 Actor input (sending to Apify):", JSON.stringify(actorInput, null, 2));

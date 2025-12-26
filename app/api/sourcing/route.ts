@@ -5,73 +5,6 @@ import { createSourcingJobSchema } from "@/lib/validations/sourcing";
 import { createSourcingWorkflow } from "@/lib/sourcing/workflow";
 
 /**
- * GET /api/sourcing - Get all sourcing jobs for current user
- */
-export async function GET(request: NextRequest) {
-  try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get query parameters for filtering
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const offset = parseInt(searchParams.get("offset") || "0");
-
-    // Build where clause
-    const where: any = { userId };
-    if (status && status !== "ALL") {
-      where.status = status;
-    }
-
-    // Fetch jobs
-    const jobs = await prisma.sourcingJob.findMany({
-      where,
-      include: {
-        _count: {
-          select: { candidates: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      skip: offset,
-    });
-
-    // Get total count for pagination
-    const total = await prisma.sourcingJob.count({ where });
-
-    return NextResponse.json({
-      jobs: jobs.map((job) => ({
-        id: job.id,
-        title: job.title,
-        status: job.status,
-        maxCandidates: job.maxCandidates,
-        totalProfilesFound: job.totalProfilesFound,
-        profilesScraped: job.profilesScraped,
-        profilesScored: job.profilesScored,
-        candidatesCount: job._count.candidates,
-        createdAt: job.createdAt,
-        completedAt: job.completedAt,
-        lastActivityAt: job.lastActivityAt,
-        progress: calculateProgress(job),
-      })),
-      total,
-      limit,
-      offset,
-    });
-  } catch (error) {
-    console.error("Error fetching sourcing jobs:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch sourcing jobs" },
-      { status: 500 }
-    );
-  }
-}
-
-/**
  * POST /api/sourcing - Create new sourcing job and start processing
  */
 export async function POST(request: NextRequest) {
@@ -151,6 +84,76 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+
+/**
+ * GET /api/sourcing - Get all sourcing jobs for current user
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get query parameters for filtering
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const offset = parseInt(searchParams.get("offset") || "0");
+
+    // Build where clause
+    const where: any = { userId };
+    if (status && status !== "ALL") {
+      where.status = status;
+    }
+
+    // Fetch jobs
+    const jobs = await prisma.sourcingJob.findMany({
+      where,
+      include: {
+        _count: {
+          select: { candidates: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    });
+
+    // Get total count for pagination
+    const total = await prisma.sourcingJob.count({ where });
+
+    return NextResponse.json({
+      jobs: jobs.map((job) => ({
+        id: job.id,
+        title: job.title,
+        status: job.status,
+        maxCandidates: job.maxCandidates,
+        totalProfilesFound: job.totalProfilesFound,
+        profilesScraped: job.profilesScraped,
+        profilesScored: job.profilesScored,
+        candidatesCount: job._count.candidates,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt,
+        lastActivityAt: job.lastActivityAt,
+        progress: calculateProgress(job),
+      })),
+      total,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    console.error("Error fetching sourcing jobs:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch sourcing jobs" },
+      { status: 500 }
+    );
+  }
+}
+
+
 
 /**
  * Calculate job progress percentage
