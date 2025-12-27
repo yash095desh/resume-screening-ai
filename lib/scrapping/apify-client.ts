@@ -15,7 +15,7 @@ export interface LinkedInSearchFilters {
   locations?: string[];
   currentCompanies?: string[];
   industryIds?: number[];
-  experienceLevels?: string[];        // ✅ ADD THIS
+  experienceLevels?: string[];        
   maxItems?: number;
   takePages?: number;
   _meta?: any;
@@ -52,6 +52,7 @@ export async function searchLinkedInProfiles(
     console.log("🔍 Starting LinkedIn profile search...");
 
     // ✅ IMPORTANT: Remove _meta before processing (shouldn't go to Apify)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _meta, ...cleanFilters } = searchFilters;
 
     // ✅ Normalize before sending to Apify

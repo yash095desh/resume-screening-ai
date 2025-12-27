@@ -11,49 +11,59 @@ export const SourcingStateAnnotation = Annotation.Root({
   jobRequirements: Annotation<any>(),
   maxCandidates: Annotation<number>(),
   
-  // === Search Configuration (NEW - was missing!) ===
+  // === Search Configuration ===
   searchFilters: Annotation<any>({
     reducer: (current, update) => update ?? current,
     default: () => null
   }),
   
-  // === Search State ===
   searchQueries: Annotation<any[]>({
     reducer: (current, update) => update ?? current,
     default: () => []
   }),
-  currentQueryIndex: Annotation<number>({
-    reducer: (current, update) => update ?? current,
-    default: () => 0
+  
+  // === Search Tracking ===
+  discoveredUrls: Annotation<Set<string>>({
+    reducer: (current, update) => {
+      if (!update) return current;
+      return new Set([...Array.from(current), ...Array.from(update)]);
+    },
+    default: () => new Set()
   }),
-  searchAttempts: Annotation<number>({
+  
+  currentSearchResults: Annotation<any[]>({
+    reducer: (current, update) => update ?? current,
+    default: () => []
+  }),
+  
+  searchIterations: Annotation<number>({
     reducer: (current, update) => update ?? current,
     default: () => 0
   }),
   
-  // === Results ===
-  profileUrls: Annotation<string[]>({
+  // === Candidate Tracking ===
+  candidatesWithEmails: Annotation<number>({
     reducer: (current, update) => update ?? current,
-    default: () => []
+    default: () => 0
   }),
+  
+  // === Scraping & Parsing ===
   scrapedProfiles: Annotation<any[]>({
     reducer: (current, update) => update ?? current,
     default: () => []
   }),
+  
   parsedProfiles: Annotation<any[]>({
     reducer: (current, update) => update ?? current,
     default: () => []
   }),
+  
   scoredCandidates: Annotation<any[]>({
     reducer: (current, update) => update ?? current,
     default: () => []
   }),
   
   // === Processing ===
-  currentBatch: Annotation<number>({
-    reducer: (current, update) => update ?? current,
-    default: () => 0
-  }),
   batchSize: Annotation<number>({
     reducer: (current, update) => update ?? current,
     default: () => 20
@@ -64,6 +74,7 @@ export const SourcingStateAnnotation = Annotation.Root({
     reducer: (current, update) => [...current, ...update],
     default: () => []
   }),
+  
   currentStage: Annotation<string>({
     reducer: (current, update) => update ?? current,
     default: () => "CREATED"

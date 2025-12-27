@@ -6,17 +6,14 @@ import type { SourcingState } from "./state";
 
 import { formatJobDescription } from "./nodes/format-jd";
 import { generateSearchQueries } from "./nodes/generate-queries";
-import { 
-  searchWithPreciseQuery, 
-  searchWithBroadQuery, 
-  searchWithAlternativeQuery 
-} from "./nodes/search-profiles";
-
+import { searchProfiles } from "./nodes/search-profiles";
 import { handleNoCandidates } from "./nodes/handle-no-candidates";
-import { scrapeAllProfiles } from "./nodes/scrape-batch";
-import { parseAllProfiles } from "./nodes/parse-batch";
-import { saveAllCandidates } from "./nodes/save-batch";
+import { enrichAndCreateCandidates } from "./nodes/enrich-and-create";
+import { scrapeCandidates } from "./nodes/scrape-candidates";
+import { parseCandidates } from "./nodes/parse-candidates";
+import { updateCandidates } from "./nodes/updates-candidate";
 import { scoreAllCandidates } from "./nodes/score-batch";
+
 
 let checkpointer: PostgresSaver | null = null;
 
@@ -32,61 +29,49 @@ export async function createSourcingWorkflow() {
   const graph = new StateGraph(SourcingStateAnnotation)
     .addNode("format_jd", formatJobDescription)
     .addNode("generate_queries", generateSearchQueries)
-    .addNode("search_precise", searchWithPreciseQuery)
-    .addNode("search_broad", searchWithBroadQuery)
-    .addNode("search_alternative", searchWithAlternativeQuery)
-    .addNode("scrape_all", scrapeAllProfiles)
-    .addNode("parse_all", parseAllProfiles)
-    .addNode("save_all", saveAllCandidates)
+    .addNode("search_profiles", searchProfiles)
+    .addNode("enrich_and_create", enrichAndCreateCandidates)
+    .addNode("scrape_candidates", scrapeCandidates)
+    .addNode("parse_candidates", parseCandidates)
+    .addNode("update_candidates", updateCandidates)
     .addNode("score_all", scoreAllCandidates)
     .addNode("handle_no_candidates", handleNoCandidates);
 
-  // Linear flow
+  // Linear start
   graph.addEdge(START, "format_jd");
   graph.addEdge("format_jd", "generate_queries");
-  graph.addEdge("generate_queries", "search_precise");
+  graph.addEdge("generate_queries", "search_profiles");
 
-  // Search phase routing
+  // After search, always enrich
+  graph.addEdge("search_profiles", "enrich_and_create");
+
+  // After enrich, check if we need more candidates
   graph.addConditionalEdges(
-    "search_precise",
+    "enrich_and_create",
     (state: SourcingState) => {
-      if (state.profileUrls.length >= state.maxCandidates) return "scrape";
-      if (state.searchAttempts < 3) return "broad";
-      return "no_candidates";
+      const current = state.candidatesWithEmails || 0;
+      const target = state.maxCandidates;
+      
+      if (current >= target) {
+        return "scrape";
+      }
+      
+      if (state.searchIterations >= 3) {
+        return "no_candidates";
+      }
+      
+      return "search_again";
     },
     {
-      scrape: "scrape_all",
-      broad: "search_broad",
+      scrape: "scrape_candidates",
+      search_again: "search_profiles",
       no_candidates: "handle_no_candidates"
     }
   );
 
-  graph.addConditionalEdges(
-    "search_broad",
-    (state: SourcingState) => {
-      return state.profileUrls.length > state.maxCandidates ? "scrape" : "alternative";
-    },
-    {
-      scrape: "scrape_all",
-      alternative: "search_alternative"
-    }
-  );
-
-  graph.addConditionalEdges(
-    "search_alternative",
-    (state: SourcingState) => {
-      return state.profileUrls.length > state.maxCandidates ? "scrape" : "no_candidates";
-    },
-    {
-      scrape: "scrape_all",
-      no_candidates: "handle_no_candidates"
-    }
-  );
-
-  // Processing pipeline - simple linear flow
-  graph.addEdge("scrape_all", "parse_all");
-  graph.addEdge("parse_all", "save_all");
-  graph.addEdge("save_all", "score_all");
+  graph.addEdge("scrape_candidates", "parse_candidates");
+  graph.addEdge("parse_candidates", "update_candidates");
+  graph.addEdge("update_candidates", "score_all");
   graph.addEdge("score_all", END);
   graph.addEdge("handle_no_candidates", END);
 

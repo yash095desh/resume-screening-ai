@@ -172,6 +172,14 @@ enum InterviewReadinessStatus {
   NOT_RECOMMENDED        // Red - significant gaps
 }
 
+enum CandidateEnrichmentStatus {
+  PENDING
+  ENRICHED
+  NO_EMAIL_FOUND
+  SKIPPED
+}
+
+
 model LinkedInCandidate {
   id                String        @id @default(cuid())
   sourcingJobId     String
@@ -203,6 +211,15 @@ model LinkedInCandidate {
   email             String?
   phone             String?
   hasContactInfo    Boolean       @default(false)
+
+    // === ENRICHMENT FIELDS (new) ===
+  enrichmentStatus       CandidateEnrichmentStatus @default(PENDING)
+  enrichedAt             DateTime?
+  emailSource            String?        // "salesql" or "scraped"
+  
+  // === SCRAPING STATUS (new) ===
+  scrapingStatus         String?        // "PENDING", "SCRAPED", "FAILED"
+  scrapedAt              DateTime?
   
   // === LINKEDIN PROFILE STATS ===
   connections       Int?          // Number of connections
@@ -242,7 +259,6 @@ model LinkedInCandidate {
   // === METADATA ===
   batchNumber       Int           @default(0)
   rawData           Json?         // Store full raw data for debugging
-  scrapedAt         DateTime      @default(now())
   scoredAt          DateTime?
   updatedAt         DateTime      @updatedAt
 
