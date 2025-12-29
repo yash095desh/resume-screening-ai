@@ -105,8 +105,6 @@ export async function GET(
             // Send update if anything changed
             if (updateHash !== lastUpdateHash) {
               lastUpdateHash = updateHash;
-              
-              console.log(`[SSE] Change detected:`, currentState);
 
               // Calculate progress based on current stage and completion
               const calculateProgress = () => {
@@ -206,7 +204,6 @@ export async function GET(
                 }
 
                 const finalProgress = Math.min(baseProgress, 100);
-                console.log(`[Progress] Stage: ${stage} → Final: ${finalProgress}%`);
                 return finalProgress;
               };
 
@@ -235,7 +232,6 @@ export async function GET(
               );
             } else {
               // No changes detected - just continue polling
-              console.log(`[SSE] 👁️  Polling... no changes (Stage: ${latestJob.currentStage})`);
             }
 
             // Close stream when complete
