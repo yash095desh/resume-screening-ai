@@ -24,7 +24,8 @@ export const linkedInSearchFiltersSchema = z.object({
   locations: z.array(z.string()).optional(),
   currentCompanies: z.array(z.string()).optional(),
   industryIds: z.array(z.number()).optional(),
-  totalYearsOfExperience: z.array(z.number()).optional(),
+  yearsOfExperienceIds: z.array(z.string()).optional(), // ✅ NEW
+  seniorityLevelIds: z.array(z.string()).optional(),    // ✅ NEW
   maxItems: z.number().optional(),
   takePages: z.number().optional(),
 });

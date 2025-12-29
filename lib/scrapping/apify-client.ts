@@ -15,7 +15,8 @@ export interface LinkedInSearchFilters {
   locations?: string[];
   currentCompanies?: string[];
   industryIds?: number[];
-  experienceLevels?: string[];        
+  yearsOfExperienceIds?: string[];  // ✅ NEW
+  seniorityLevelIds?: string[];     // ✅ NEW
   maxItems?: number;
   takePages?: number;
   _meta?: any;
@@ -106,9 +107,12 @@ export async function searchLinkedInProfiles(
     }
 
 
-    // In searchLinkedInProfiles, add experienceLevels handling:
-    if (normalizedFilters.experienceLevels && normalizedFilters.experienceLevels.length > 0) {
-      actorInput.experienceLevels = normalizedFilters.experienceLevels;
+    if (normalizedFilters.yearsOfExperienceIds && normalizedFilters.yearsOfExperienceIds.length > 0) {
+      actorInput.yearsOfExperienceIds = normalizedFilters.yearsOfExperienceIds;
+    }
+
+    if (normalizedFilters.seniorityLevelIds && normalizedFilters.seniorityLevelIds.length > 0) {
+      actorInput.seniorityLevelIds = normalizedFilters.seniorityLevelIds;
     }
 
     console.log("🔧 Actor input (sending to Apify):", JSON.stringify(actorInput, null, 2));

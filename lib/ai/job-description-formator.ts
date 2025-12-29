@@ -3,7 +3,8 @@
 import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { INDUSTRY_TO_LINKEDIN_ID, EXPERIENCE_LEVEL_MAPPING } from "@/lib/constants/linkedin-mappings";
+import { INDUSTRY_TO_LINKEDIN_ID, YEARS_OF_EXPERIENCE_IDS_MAPPING, SENIORITY_LEVEL_IDS_MAPPING } from "@/lib/constants/linkedin-mappings";
+
 
 const linkedInSearchSchema = z.object({
   searchQuery: z.string().optional().describe("Boolean search query combining top 2-3 skills with AND (e.g., 'React AND Node.js')"),
@@ -72,8 +73,12 @@ Generate LinkedIn search filters that will find relevant candidates.`,
     console.log("✅ AI generated filters:", JSON.stringify(object, null, 2));
 
     // ✅ STEP 2: Map user inputs to LinkedIn filters
-    const experienceLevels = jobRequirements?.yearsOfExperience
-      ? EXPERIENCE_LEVEL_MAPPING[jobRequirements.yearsOfExperience] || []
+    const yearsOfExperienceIds = jobRequirements?.yearsOfExperience
+      ? YEARS_OF_EXPERIENCE_IDS_MAPPING[jobRequirements.yearsOfExperience] || []
+      : undefined;
+
+    const seniorityLevelIds = jobRequirements?.yearsOfExperience
+      ? SENIORITY_LEVEL_IDS_MAPPING[jobRequirements.yearsOfExperience] || []
       : undefined;
 
     const industryIds = jobRequirements?.industry
@@ -85,18 +90,18 @@ Generate LinkedIn search filters that will find relevant candidates.`,
       searchQuery: object.searchQuery,
       currentJobTitles: object.currentJobTitles,
       locations: object.locations,
-      experienceLevels: experienceLevels,  // ✅ NOW INCLUDED
-      industryIds: industryIds,             // ✅ NOW MAPPED CORRECTLY
+      yearsOfExperienceIds: yearsOfExperienceIds,  
+      seniorityLevelIds: seniorityLevelIds,          
+      industryIds: industryIds,
       maxItems: maxCandidates,
       takePages: Math.ceil(maxCandidates / 25),
       
-      // Store metadata for scoring and post-filtering
       _meta: {
         requiredSkills: jobRequirements?.requiredSkills?.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) || [],
         niceToHaveSkills: jobRequirements?.niceToHave?.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) || [],
         yearsOfExperience: jobRequirements?.yearsOfExperience,
-        educationLevel: jobRequirements?.educationLevel,      // For scoring only
-        companyType: jobRequirements?.companyType,            // For scoring only
+        educationLevel: jobRequirements?.educationLevel,
+        companyType: jobRequirements?.companyType,
         rawJobDescription: jobDescription,
       }
     };
@@ -112,8 +117,12 @@ Generate LinkedIn search filters that will find relevant candidates.`,
     const skills = jobRequirements?.requiredSkills?.split(/[,;\n]/).map(s => s.trim()).filter(Boolean) || [];
     const searchQuery = skills.slice(0, 3).join(" AND ");
     
-    const experienceLevels = jobRequirements?.yearsOfExperience
-      ? EXPERIENCE_LEVEL_MAPPING[jobRequirements.yearsOfExperience]
+    const yearsOfExperienceIds = jobRequirements?.yearsOfExperience
+      ? YEARS_OF_EXPERIENCE_IDS_MAPPING[jobRequirements.yearsOfExperience]
+      : undefined;
+
+    const seniorityLevelIds = jobRequirements?.yearsOfExperience
+      ? SENIORITY_LEVEL_IDS_MAPPING[jobRequirements.yearsOfExperience]
       : undefined;
 
     const industryIds = jobRequirements?.industry
@@ -124,7 +133,8 @@ Generate LinkedIn search filters that will find relevant candidates.`,
     
     return {
       searchQuery: searchQuery || undefined,
-      experienceLevels: experienceLevels,
+      yearsOfExperienceIds: yearsOfExperienceIds,  // ✅ NEW
+      seniorityLevelIds: seniorityLevelIds,         // ✅ NEW
       industryIds: industryIds,
       maxItems: maxCandidates,
       takePages: Math.ceil(maxCandidates / 25),
