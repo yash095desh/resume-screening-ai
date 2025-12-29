@@ -17,19 +17,20 @@ export const INDUSTRY_TO_LINKEDIN_ID: Record<string, number[] | undefined> = {
   "Any": undefined,   // Don't filter by industry
 };
 
-export const EXPERIENCE_LEVEL_MAPPING: Record<string, string[]> = {
-  "internship": ["internship"],
-  "entry": ["entry"],
-  "associate": ["associate"],
-  "mid-senior": ["mid-senior"],
-  "director": ["director"],
-  "executive": ["executive"],
-  
-  // Handle old format if any exists (backward compatibility)
-  "0-2": ["internship", "entry"],
-  "2-4": ["entry", "associate"],
-  "3-5": ["associate"],
-  "5-8": ["mid-senior"],
-  "8-12": ["mid-senior", "director"],
-  "12+": ["director", "executive"],
+export const YEARS_OF_EXPERIENCE_IDS_MAPPING: Record<string, string[]> = {
+  "internship": ["1"],           // Less than 1 year
+  "entry": ["1", "2"],            // Less than 1 year + 1-2 years
+  "associate": ["2", "3"],        // 1-2 years + 3-5 years
+  "mid-senior": ["3", "4"],       // 3-5 years + 6-10 years
+  "director": ["4", "5"],         // 6-10 years + 10+ years
+  "executive": ["5"],             // 10+ years only
+};
+
+export const SENIORITY_LEVEL_IDS_MAPPING: Record<string, string[]> = {
+  "internship": ["100"],          // In Training
+  "entry": ["110"],               // Entry Level
+  "associate": ["110", "120"],    // Entry Level + Senior
+  "mid-senior": ["120", "130"],   // Senior + Strategic
+  "director": ["200", "210", "220"], // Managers + Director
+  "executive": ["300", "310", "320"], // VP + CXO + Owner
 };

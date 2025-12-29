@@ -32,7 +32,8 @@ export async function generateSearchQueries(state: SourcingState) {
       currentJobTitles: searchFilters.currentJobTitles,
       locations: searchFilters.locations,
       industryIds: searchFilters.industryIds,
-      experienceLevels: searchFilters.experienceLevels, // ✅ ADD THIS
+      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+      seniorityLevelIds: searchFilters.seniorityLevelIds,   
       maxItems: state.maxCandidates,
       takePages: searchFilters.takePages,
     });
@@ -43,11 +44,12 @@ export async function generateSearchQueries(state: SourcingState) {
       searchQuery: searchFilters.searchQuery,
       currentJobTitles: searchFilters.currentJobTitles?.slice(0, 3),
       locations: searchFilters.locations,
-      experienceLevels: searchFilters.experienceLevels, // ✅ ADD THIS
+      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+      seniorityLevelIds: searchFilters.seniorityLevelIds,  
       maxItems: state.maxCandidates,
       takePages: searchFilters.takePages,
     });
-
+    
     // === STRATEGY 3: ALTERNATIVE (Keep experience level) ===
     if (meta.niceToHaveSkills && meta.niceToHaveSkills.length > 0) {
       const alternativeQuery = meta.niceToHaveSkills.slice(0, 3).join(" AND ");
@@ -57,7 +59,8 @@ export async function generateSearchQueries(state: SourcingState) {
         searchQuery: alternativeQuery,
         currentJobTitles: searchFilters.currentJobTitles,
         locations: searchFilters.locations,
-        experienceLevels: searchFilters.experienceLevels, // ✅ ADD THIS
+        yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+        seniorityLevelIds: searchFilters.seniorityLevelIds,  
         maxItems: state.maxCandidates,
         takePages: searchFilters.takePages,
       });
