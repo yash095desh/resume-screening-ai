@@ -32,7 +32,7 @@ export async function generateSearchQueries(state: SourcingState) {
       currentJobTitles: searchFilters.currentJobTitles,
       locations: searchFilters.locations,
       industryIds: searchFilters.industryIds,
-      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, 
       seniorityLevelIds: searchFilters.seniorityLevelIds,   
       maxItems: state.maxCandidates,
       takePages: searchFilters.takePages,
@@ -44,7 +44,7 @@ export async function generateSearchQueries(state: SourcingState) {
       searchQuery: searchFilters.searchQuery,
       currentJobTitles: searchFilters.currentJobTitles?.slice(0, 3),
       locations: searchFilters.locations,
-      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+      yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, 
       seniorityLevelIds: searchFilters.seniorityLevelIds,  
       maxItems: state.maxCandidates,
       takePages: searchFilters.takePages,
@@ -59,7 +59,7 @@ export async function generateSearchQueries(state: SourcingState) {
         searchQuery: alternativeQuery,
         currentJobTitles: searchFilters.currentJobTitles,
         locations: searchFilters.locations,
-        yearsOfExperienceIds: searchFilters.yearsOfExperienceIds, // ✅ NEW
+        yearsOfExperienceIds: searchFilters.yearsOfExperienceIds,
         seniorityLevelIds: searchFilters.seniorityLevelIds,  
         maxItems: state.maxCandidates,
         takePages: searchFilters.takePages,

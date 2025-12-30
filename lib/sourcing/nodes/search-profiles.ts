@@ -6,14 +6,11 @@ import type { SourcingState } from "../state";
 export async function searchProfiles(state: SourcingState) {
   console.log(`\n🔍 SEARCH ITERATION ${state.searchIterations + 1}`);
   
-  // Calculate how many more candidates we need
   const currentCount = state.candidatesWithEmails || 0;
   const remaining = state.maxCandidates - currentCount;
-  const searchTarget = Math.ceil(remaining * 1.5);
+  const searchTarget = Math.ceil(remaining * 2);
   
-  console.log(`📊 Current: ${currentCount}/${state.maxCandidates} candidates`);
-  console.log(`📊 Need: ${remaining} more candidates`);
-  console.log(`📊 Searching for: ${searchTarget} profiles (1.5x buffer)`);
+  console.log(`Current: ${currentCount}/${state.maxCandidates} | Need: ${remaining} | Searching: ${searchTarget}`);
 
   const discoveredUrls = new Set(state.discoveredUrls || []);
   let foundProfiles: any[] = [];
@@ -29,30 +26,25 @@ export async function searchProfiles(state: SourcingState) {
       continue;
     }
     
-    // Adjust query to search for remaining amount
     const adjustedQuery = {
       ...query,
       maxItems: searchTarget,
     };
     
     try {
-      // Search returns array of user objects with basic info
       const results = await searchLinkedInProfiles(adjustedQuery);
       
-      console.log(`   Found ${results.length} profiles from search`);
+      console.log(` Found ${results.length} profiles from search`);
       
-      // Deduplicate against all previously discovered URLs
       const newProfiles = results.filter((profile: any) => 
         profile.profileUrl && !discoveredUrls.has(profile.profileUrl)
       );
       
       console.log(`   ${newProfiles.length} are new (${results.length - newProfiles.length} duplicates removed)`);
       
-      // Add new profiles to our collection
       foundProfiles = [...foundProfiles, ...newProfiles];
       newProfiles.forEach((profile: any) => discoveredUrls.add(profile.profileUrl));
       
-      // If we have enough profiles, stop searching
       if (foundProfiles.length >= searchTarget) {
         console.log(`✅ Found enough profiles (${foundProfiles.length}), stopping search`);
         break;
@@ -75,10 +67,8 @@ export async function searchProfiles(state: SourcingState) {
     }
   }
   
-  console.log(`\n✅ Search complete: Found ${foundProfiles.length} new profiles`);
-  console.log(`📊 Total discovered across all iterations: ${discoveredUrls.size}`);
+  console.log(`\n✅ Search complete: Found ${foundProfiles.length} new profiles (Total discovered: ${discoveredUrls.size})\n`);
   
-  // Update database
   await prisma.sourcingJob.update({
     where: { id: state.jobId },
     data: {

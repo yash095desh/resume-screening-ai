@@ -7,13 +7,12 @@ import type { SourcingState } from "./state";
 import { formatJobDescription } from "./nodes/format-jd";
 import { generateSearchQueries } from "./nodes/generate-queries";
 import { searchProfiles } from "./nodes/search-profiles";
-import { handleNoCandidates } from "./nodes/handle-no-candidates";
 import { enrichAndCreateCandidates } from "./nodes/enrich-and-create";
 import { scrapeCandidates } from "./nodes/scrape-candidates";
 import { parseCandidates } from "./nodes/parse-candidates";
+import { handleNoCandidates } from "./nodes/handle-no-candidates";
 import { updateCandidates } from "./nodes/updates-candidate";
 import { scoreAllCandidates } from "./nodes/score-batch";
-
 
 let checkpointer: PostgresSaver | null = null;
 
@@ -37,15 +36,11 @@ export async function createSourcingWorkflow() {
     .addNode("score_all", scoreAllCandidates)
     .addNode("handle_no_candidates", handleNoCandidates);
 
-  // Linear start
   graph.addEdge(START, "format_jd");
   graph.addEdge("format_jd", "generate_queries");
   graph.addEdge("generate_queries", "search_profiles");
-
-  // After search, always enrich
   graph.addEdge("search_profiles", "enrich_and_create");
 
-  // After enrich, check if we need more candidates
   graph.addConditionalEdges(
     "enrich_and_create",
     (state: SourcingState) => {
@@ -56,7 +51,11 @@ export async function createSourcingWorkflow() {
         return "scrape";
       }
       
-      if (state.searchIterations >= 3) {
+      if (state.searchIterations >= 5) {
+        if (current > 0) {
+          console.log(`⚠️ Max iterations reached with ${current}/${target} candidates - proceeding to scrape`);
+          return "scrape";
+        }
         return "no_candidates";
       }
       

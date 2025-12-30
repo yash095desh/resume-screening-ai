@@ -2,13 +2,47 @@
 import { prisma } from "@/lib/prisma";
 import type { SourcingState } from "../state";
 
+interface SalesQLEmail {
+  email: string;
+  type: string;
+  status: "Valid" | "Unverifiable" | string;
+}
+
+interface SalesQLPhone {
+  phone: string;
+  type: string;
+  country_code?: string;
+  is_valid?: boolean;
+}
+
+interface SalesQLLocation {
+  city?: string;
+  state?: string;
+  country_code?: string;
+  country?: string;
+}
+
+interface SalesQLResponse {
+  uuid?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  linkedin_url?: string;
+  headline?: string;
+  emails?: SalesQLEmail[];
+  phones?: SalesQLPhone[];
+  location?: SalesQLLocation;
+  industry?: string;
+  image?: string;
+}
+
 interface SalesQLResult {
   hasEmail: boolean;
   email?: string;
   phone?: string;
   emailType?: string;
   emailStatus?: string;
-  fullData?: any;
+  fullData?: SalesQLResponse;
 }
 
 async function enrichWithSalesQL(
@@ -21,28 +55,31 @@ async function enrichWithSalesQL(
       {
         method: "GET",
         headers: {
-          "x-api-key": apiKey,
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
       }
     );
 
-    if (!response.ok) {
-      console.error(`SalesQL API error: ${response.status}`);
+    if (response.status === 429) {
+      console.error(`⚠️ Rate limit hit`);
       return { hasEmail: false };
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      return { hasEmail: false };
+    }
+
+    const data: SalesQLResponse = await response.json();
 
     if (data.emails && data.emails.length > 0) {
-      // Prioritize: Valid personal > Valid work > Any work > Any
-      const validWork = data.emails.find(
-        (e: any) => e.status === "Valid" && e.type === "work"
+      const validDirect = data.emails.find(
+        (e: SalesQLEmail) => e.status === "Valid" && e.type === "Direct"
       );
-      const validPersonal = data.emails.find(
-        (e: any) => e.status === "Valid" && e.type === "personal"
+      const validAny = data.emails.find(
+        (e: SalesQLEmail) => e.status === "Valid"
       );
-      const anyWork = data.emails.find((e: any) => e.type === "work");
-      const bestEmail = validPersonal  || validWork || anyWork || data.emails[0];
+      const bestEmail = validDirect || validAny || data.emails[0];
 
       const result: SalesQLResult = {
         hasEmail: true,
@@ -52,29 +89,29 @@ async function enrichWithSalesQL(
         fullData: data,
       };
 
-      // Get phone if available (no extra charge)
       if (data.phones && data.phones.length > 0) {
-        const workPhone = data.phones.find((p: any) => p.type === "work");
-        result.phone = ( data.phones[0]  ||  workPhone ).number;
+        const validPhone = data.phones.find((p: SalesQLPhone) => p.is_valid === true);
+        const selectedPhone = validPhone || data.phones[0];
+        result.phone = selectedPhone.phone;
       }
 
       return result;
     }
 
     return { hasEmail: false };
+    
   } catch (error: any) {
-    console.error(`SalesQL error:`, error.message);
+    console.error(`❌ SalesQL error:`, error.message);
     return { hasEmail: false };
   }
 }
 
 export async function enrichAndCreateCandidates(state: SourcingState) {
-  console.log(`\n📧 ENRICHMENT & CREATE PHASE`);
-  console.log(`📊 Processing ${state.currentSearchResults.length} profiles from search`);
+  console.log(`\n📧 ENRICHMENT STARTED: Target ${state.maxCandidates}, Processing ${state.currentSearchResults.length} profiles`);
   
   const apiKey = process.env.SALESQL_API_KEY;
   if (!apiKey) {
-    console.error("❌ SALESQL_API_KEY not configured");
+    console.error(`❌ SALESQL_API_KEY not configured`);
     
     await prisma.sourcingJob.update({
       where: { id: state.jobId },
@@ -97,107 +134,96 @@ export async function enrichAndCreateCandidates(state: SourcingState) {
   }
 
   let created = 0;
+  let skipped = 0;
   let discarded = 0;
+  let foundWithEmail = state.candidatesWithEmails || 0;
 
-  for (const userProfile of state.currentSearchResults) {
-    // Check if candidate already exists (resume support)
+  for (let i = 0; i < state.currentSearchResults.length; i++) {
+    const profile = state.currentSearchResults[i];
+
+    if (foundWithEmail >= state.maxCandidates) {
+      console.log(`🎯 Target reached (${foundWithEmail}/${state.maxCandidates}) at profile ${i + 1}/${state.currentSearchResults.length}`);
+      break;
+    }
+
     const exists = await prisma.linkedInCandidate.findUnique({
       where: {
         sourcingJobId_profileUrl: {
           sourcingJobId: state.jobId,
-          profileUrl: userProfile.profileUrl
+          profileUrl: profile.profileUrl
         }
       }
     });
 
     if (exists) {
-      console.log(`   ⚠️ ${userProfile.profileUrl} already exists, skipping`);
+      skipped++;
       if (exists.hasContactInfo) {
-        created++; // Count it toward total
+        foundWithEmail++;
       }
       continue;
     }
 
-    // Enrich with SalesQL
-    console.log(`   Enriching: ${userProfile.fullName || userProfile.profileUrl}`);
-    const enrichment = await enrichWithSalesQL(userProfile.profileUrl, apiKey);
+    const enrichment = await enrichWithSalesQL(profile.profileUrl, apiKey);
 
     if (enrichment.hasEmail) {
-      // ✅ CREATE CANDIDATE IMMEDIATELY with basic info + email
       try {
+        const salesqlData = enrichment.fullData;
+        
         await prisma.linkedInCandidate.create({
           data: {
             sourcingJobId: state.jobId,
-            
-            // === BASIC INFO FROM SEARCH ===
-            profileUrl: userProfile.profileUrl,
-            fullName: userProfile.fullName || "Unknown",
-            headline: userProfile.headline,
-            location: userProfile.location,
-            currentPosition: userProfile.currentPosition,
-            currentCompany: userProfile.currentCompany,
-            photoUrl: userProfile.photoUrl,
-            
-            // === EMAIL FROM SALESQL (SAVED IMMEDIATELY) ===
+            profileUrl: profile.profileUrl,
+            fullName: salesqlData?.full_name || profile.fullName || "Unknown",
+            headline: salesqlData?.headline || profile.headline,
+            location: salesqlData?.location?.city 
+              ? `${salesqlData.location.city}, ${salesqlData.location.state || salesqlData.location.country}`
+              : profile.location,
+            currentPosition: profile.currentPosition,
+            currentCompany: profile.currentCompany,
+            photoUrl: salesqlData?.image || profile.photoUrl,
             email: enrichment.email,
             phone: enrichment.phone,
             hasContactInfo: true,
             emailSource: "salesql",
-            
-            // === STATUS ===
             enrichmentStatus: "ENRICHED",
             enrichedAt: new Date(),
             scrapingStatus: "PENDING",
-            
-            // === RAW DATA ===
             rawData: {
-              searchData: userProfile,
-              salesqlData: enrichment.fullData
-            }
+              searchData: profile,
+              salesqlData: enrichment.fullData as any
+            } as any
           }
         });
 
         created++;
-        console.log(`   ✓ Created: ${userProfile.fullName} (${enrichment.email})`);
+        foundWithEmail++;
+        
       } catch (error: any) {
-        console.error(`   ❌ Failed to create candidate:`, error.message);
+        console.error(`❌ DB error:`, error.message);
       }
     } else {
-      // DISCARD - no email found
       discarded++;
-      console.log(`   ✗ No email: ${userProfile.fullName || userProfile.profileUrl} (discarded)`);
     }
 
-    // Rate limiting: 1.2 seconds between calls (safe for 50/min limit)
-    //TODO: this part must craifies with salesQl documentation
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    if (i < state.currentSearchResults.length - 1) {
+      await new Promise(r => setTimeout(r, 334));
+    }
   }
 
-  // Get final count from database
-  const totalWithEmails = await prisma.linkedInCandidate.count({
-    where: {
-      sourcingJobId: state.jobId,
-      hasContactInfo: true
-    }
-  });
-
-  console.log(`\n✅ Enrichment complete:`);
-  console.log(`   Created: ${created}`);
-  console.log(`   Discarded: ${discarded}`);
-  console.log(`   Total candidates with emails: ${totalWithEmails}/${state.maxCandidates}`);
+  console.log(`✅ ENRICHMENT COMPLETE: Created ${created}, Skipped ${skipped}, Discarded ${discarded}, Total ${foundWithEmail}/${state.maxCandidates}\n`);
 
   await prisma.sourcingJob.update({
     where: { id: state.jobId },
     data: {
       status: "PROFILES_FOUND",
-      currentStage: `ENRICHED_${totalWithEmails}_OF_${state.maxCandidates}`,
+      currentStage: `ENRICHED_${foundWithEmail}_OF_${state.maxCandidates}`,
       lastActivityAt: new Date()
     }
   });
 
   return {
-    candidatesWithEmails: totalWithEmails,
-    currentSearchResults: [], // Clear for next iteration
+    candidatesWithEmails: foundWithEmail,
+    currentSearchResults: [],
     currentStage: "ENRICHMENT_COMPLETE"
   };
 }

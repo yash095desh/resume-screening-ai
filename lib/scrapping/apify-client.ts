@@ -60,7 +60,7 @@ export async function searchLinkedInProfiles(
     const normalizedFilters = normalizeFiltersForApify(cleanFilters);
 
     const actorInput: any = {
-      profileScraperMode: "Short",
+      profileScraperMode: "Full",
       maxItems: normalizedFilters.maxItems || 50,
       takePages:
         normalizedFilters.takePages ||
