@@ -212,11 +212,16 @@ export async function enrichAndCreateCandidates(state: SourcingState) {
 
   console.log(`✅ ENRICHMENT COMPLETE: Created ${created}, Skipped ${skipped}, Discarded ${discarded}, Total ${foundWithEmail}/${state.maxCandidates}\n`);
 
+  const reachedTarget = foundWithEmail >= state.maxCandidates;
+
   await prisma.sourcingJob.update({
     where: { id: state.jobId },
     data: {
-      status: "PROFILES_FOUND",
-      currentStage: `ENRICHED_${foundWithEmail}_OF_${state.maxCandidates}`,
+      totalProfilesFound: reachedTarget ? foundWithEmail : 0,  // ✅ Only set when done
+      status: reachedTarget ? "PROFILES_FOUND" : "SEARCHING_PROFILES",
+      currentStage: reachedTarget 
+        ? "ENRICHMENT_COMPLETE" 
+        : `ENRICHING_${foundWithEmail}_OF_${state.maxCandidates}`,
       lastActivityAt: new Date()
     }
   });
@@ -224,6 +229,6 @@ export async function enrichAndCreateCandidates(state: SourcingState) {
   return {
     candidatesWithEmails: foundWithEmail,
     currentSearchResults: [],
-    currentStage: "ENRICHMENT_COMPLETE"
+    currentStage: reachedTarget ? "ENRICHMENT_COMPLETE" : "NEED_MORE_CANDIDATES"
   };
 }

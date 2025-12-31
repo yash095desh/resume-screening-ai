@@ -787,20 +787,50 @@ function CandidateCard({ candidate, jobId }: { candidate: Candidate; jobId: stri
 
 // User-friendly status messages
 function getUserFriendlyStatus(stage: string): string {
+  // Natural language - what a recruiter would understand
+  
+  // Search + Enrichment Loop
+  if (stage?.startsWith("SEARCH_ITERATION_")) {
+    const match = stage.match(/SEARCH_ITERATION_(\d+)/);
+    return match ? `Searching for candidates (round ${match[1]})...` : "Searching for candidates...";
+  }
+  
+  if (stage?.startsWith("ENRICHING_")) {
+    return "Verifying contact information...";
+  }
+  
+  // Scraping
+  if (stage?.startsWith("SCRAPING_BATCH_")) {
+    return "Collecting detailed profiles...";
+  }
+  
+  // Parsing
+  if (stage?.startsWith("PARSING_BATCH_")) {
+    return "Reviewing candidate backgrounds...";
+  }
+  
+  // Saving
+  if (stage?.startsWith("UPDATING_BATCH_")) {
+    return "Organizing candidate information...";
+  }
+  
+  // Scoring
+  if (stage?.startsWith("SCORED_")) {
+    return "Evaluating candidate fit...";
+  }
+  
+  // Static stages
   const messages: Record<string, string> = {
-    CREATED: "Initializing AI search...",
-    FORMATTING_JD: "Understanding job requirements...",
-    SEARCHING_PROFILES: "Discovering potential candidates...",
-    SEARCHING_COMPLETE: "Found candidates, preparing to collect data...",
-    SCRAPING_PROFILES: "Gathering candidate information...",
-    SCRAPING_COMPLETE: "Data collected, starting analysis...",
-    PARSING_PROFILES: "Analyzing profiles with AI...",
-    PARSING_COMPLETE: "Analysis complete, organizing data...",
-    SAVING_PROFILES: "Organizing candidate data...",
-    SAVING_COMPLETE: "Data organized, calculating matches...",
-    SCORING_PROFILES: "Calculating match scores...",
-    SCORING_COMPLETE: "Finalizing results...",
-    PROCESSING: "Processing...",
+    CREATED: "Getting started...",
+    FORMATTING_JD: "Understanding your requirements...",
+    JD_FORMATTED: "Requirements ready",
+    QUERY_GENERATED: "Preparing search strategy...",
+    ENRICHMENT_COMPLETE: "Candidates ready for review",
+    SCRAPING_COMPLETE: "Profile collection complete",
+    PARSING_COMPLETE: "Background review complete",
+    UPDATE_COMPLETE: "Information organized",
+    SCORING_COMPLETE: "Evaluation complete",
+    PROCESSING: "Working on it...",
   };
   
   return messages[stage] || "Processing...";
@@ -810,85 +840,112 @@ function getUserFriendlyStatus(stage: string): string {
 function getStageIcon(stage: string) {
   const iconClass = "w-4 h-4 text-primary";
   
+  // Group similar stages
+  if (stage?.startsWith("SEARCH_") || stage?.startsWith("ENRICHING_")) {
+    return <Search className={iconClass} />;
+  }
+  
+  if (stage?.startsWith("SCRAPING_")) {
+    return <Users className={iconClass} />;
+  }
+  
+  if (stage?.startsWith("PARSING_")) {
+    return <Eye className={iconClass} />;
+  }
+  
+  if (stage?.startsWith("UPDATING_") || stage === "UPDATE_COMPLETE") {
+    return <Users className={iconClass} />;
+  }
+  
+  if (stage?.startsWith("SCORED_") || stage === "SCORING_COMPLETE") {
+    return <Calculator className={iconClass} />;
+  }
+  
   switch (stage) {
     case "CREATED":
-      return <Sparkles className={iconClass} />;
     case "FORMATTING_JD":
+    case "JD_FORMATTED":
+    case "QUERY_GENERATED":
       return <FileText className={iconClass} />;
-    case "SEARCHING_PROFILES":
-    case "SEARCHING_COMPLETE":
-      return <Search className={iconClass} />;
-    case "SCRAPING_PROFILES":
-    case "SCRAPING_COMPLETE":
-      return <Users className={iconClass} />;
-    case "PARSING_PROFILES":
-    case "PARSING_COMPLETE":
-      return <Eye className={iconClass} />;
-    case "SAVING_PROFILES":
-    case "SAVING_COMPLETE":
-      return <Users className={iconClass} />;
-    case "SCORING_PROFILES":
-    case "SCORING_COMPLETE":
-      return <Calculator className={iconClass} />;
+      
+    case "ENRICHMENT_COMPLETE":
+      return <Mail className={iconClass} />;
+      
     default:
       return <Loader2 className={`${iconClass} animate-spin`} />;
   }
 }
 
-// Get detailed progress text
 function getDetailedProgress(job: JobData): string {
   const stage = job.currentStage || job.status;
   const total = job.totalProfilesFound;
   
-  switch (stage) {
-    case "SEARCHING_PROFILES":
-      if (total > 0) {
-        return `Found ${total} potential matches`;
-      }
-      return "Searching for candidates...";
-    
-    case "SEARCHING_COMPLETE":
-      return `Found ${total} candidates, preparing to collect data`;
-    
-    case "SCRAPING_PROFILES":
-      if (total > 0) {
-        return `Gathering info from ${job.profilesScraped} of ${total} profiles`;
-      }
-      return "Gathering candidate information...";
-    
-    case "SCRAPING_COMPLETE":
-      return `Collected data from ${job.profilesScraped} profiles, starting analysis`;
-    
-    case "PARSING_PROFILES":
-      if (total > 0) {
-        return `Analyzing ${job.profilesParsed} of ${total} profiles`;
-      }
-      return "Analyzing profiles with AI...";
-    
-    case "PARSING_COMPLETE":
-      return `Analyzed ${job.profilesParsed} profiles, organizing data`;
-    
-    case "SAVING_PROFILES":
-      if (total > 0) {
-        return `Organizing ${job.profilesSaved} of ${total} candidates`;
-      }
-      return "Organizing candidate data...";
-    
-    case "SAVING_COMPLETE":
-      return `Organized ${job.profilesSaved} candidates, calculating matches`;
-    
-    case "SCORING_PROFILES":
-      if (total > 0) {
-        return `Evaluating ${job.profilesScored} of ${total} candidates`;
-      }
-      return "Calculating match scores...";
-    
-    case "SCORING_COMPLETE":
-      return `Scored ${job.profilesScored} candidates, finalizing results`;
-    
-    default:
-      return getUserFriendlyStatus(stage);
+  // Natural progress descriptions
+  
+  // Search + Enrichment Loop (no counts yet - internal process)
+  if (stage?.startsWith("SEARCH_ITERATION_")) {
+    return "Looking for professionals who match your criteria";
   }
+  
+  if (stage?.startsWith("ENRICHING_")) {
+    const match = stage.match(/ENRICHING_(\d+)_OF_(\d+)/);
+    return match 
+      ? `Found ${match[1]} candidates so far, searching for more...`
+      : "Checking candidate availability...";
+  }
+  
+  if (stage === "ENRICHMENT_COMPLETE") {
+    return total > 0 
+      ? `Ready to analyze ${total} qualified candidates` 
+      : "Candidates ready for analysis";
+  }
+  
+  // Scraping
+  if (stage?.startsWith("SCRAPING_BATCH_")) {
+    return total > 0 
+      ? `Gathering details for ${job.profilesScraped} of ${total} candidates`
+      : "Collecting candidate information...";
+  }
+  
+  if (stage === "SCRAPING_COMPLETE") {
+    return `Collected information from ${job.profilesScraped} candidates`;
+  }
+  
+  // Parsing
+  if (stage?.startsWith("PARSING_BATCH_")) {
+    return total > 0
+      ? `Reviewing ${job.profilesParsed} of ${total} professional backgrounds`
+      : "Reviewing candidate backgrounds...";
+  }
+  
+  if (stage === "PARSING_COMPLETE") {
+    return `Reviewed ${job.profilesParsed} candidate backgrounds`;
+  }
+  
+  // Saving
+  if (stage?.startsWith("UPDATING_BATCH_")) {
+    return total > 0
+      ? `Organizing information for ${job.profilesSaved} of ${total} candidates`
+      : "Organizing candidate information...";
+  }
+  
+  if (stage === "UPDATE_COMPLETE") {
+    return `Information organized for ${job.profilesSaved} candidates`;
+  }
+  
+  // Scoring
+  if (stage?.startsWith("SCORED_")) {
+    const match = stage.match(/SCORED_(\d+)_OF_(\d+)/);
+    return match
+      ? `Evaluated fit for ${match[1]} of ${match[2]} candidates`
+      : "Evaluating candidate fit...";
+  }
+  
+  if (stage === "SCORING_COMPLETE") {
+    return `Completed evaluation for ${job.profilesScored} candidates`;
+  }
+  
+  return getUserFriendlyStatus(stage);
 }
 
 // Loading Skeleton

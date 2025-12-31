@@ -69,12 +69,13 @@ export async function searchProfiles(state: SourcingState) {
   
   console.log(`\n✅ Search complete: Found ${foundProfiles.length} new profiles (Total discovered: ${discoveredUrls.size})\n`);
   
+  // ✅ Don't update totalProfilesFound here - only save discoveredUrls for resume
   await prisma.sourcingJob.update({
     where: { id: state.jobId },
     data: {
-      totalProfilesFound: discoveredUrls.size,
+      discoveredUrls: Array.from(discoveredUrls) as any,  // ✅ Save for resume support
       status: "SEARCHING_PROFILES",
-      currentStage: `SEARCH_ITERATION_${state.searchIterations + 1}_COMPLETE`,
+      currentStage: `SEARCH_ITERATION_${state.searchIterations + 1}`,
       lastActivityAt: new Date()
     }
   });
