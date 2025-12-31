@@ -780,10 +780,12 @@ function InterviewReadinessTab({ candidate, readinessConfig }: {
 }
 
 function SkillsAnalysisTab({ candidate, job }: { candidate: Candidate; job: JobData | null }) {
-  const requiredSkills = job?.jobRequirements?.requiredSkills || [];
   const matchedCount = candidate.matchedSkills?.length || 0;
-  const totalRequired = requiredSkills.length || 1;
-  const skillMatchPercentage = (matchedCount / totalRequired) * 100;
+  const missingCount = candidate.missingSkills?.length || 0;
+  const totalRequired = matchedCount + missingCount;
+  const skillMatchPercentage = totalRequired > 0 
+    ? Math.min((matchedCount / totalRequired) * 100, 100)
+    : 0;
 
   return (
     <>
