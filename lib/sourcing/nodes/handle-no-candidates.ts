@@ -19,7 +19,7 @@ export async function handleNoCandidates(state: SourcingState) {
     const report = `
 # No Candidates Found
 
-After trying ${state.searchAttempts} different search strategies, no suitable candidates were found.
+After trying ${state.searchIterations} different search strategies, no suitable candidates were found.
 
 ## Search Strategies Attempted:
 ${state.searchQueries.map((q, i) => `${i + 1}. ${q.type}: ${q.searchQuery || 'Title-based search'}`).join('\n')}
