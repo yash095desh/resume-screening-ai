@@ -14,6 +14,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+     const rateLimitedJob = await prisma.sourcingJob.findFirst({
+      where: {
+        userId,
+        status: "RATE_LIMITED",
+      },
+      select: {
+        id: true,
+        title: true,
+        rateLimitResetAt: true,
+        errorMessage: true,
+      },
+    });
+
+    if (rateLimitedJob) {
+      const resetTime = rateLimitedJob.rateLimitResetAt 
+        ? new Date(rateLimitedJob.rateLimitResetAt).toLocaleString()
+        : "soon";
+      
+      return NextResponse.json(
+        { 
+          error: "Service temporarily unavailable",
+          message: `You have a job that hit a service limit. Please try again after ${resetTime}.`,
+          rateLimited: true,
+          jobId: rateLimitedJob.id,
+          resetAt: rateLimitedJob.rateLimitResetAt,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = createSourcingJobSchema.parse(body);
 

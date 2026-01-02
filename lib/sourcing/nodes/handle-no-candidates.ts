@@ -34,12 +34,13 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 - Try again with modified criteria
     `.trim();
     
-    //  Update database with completion status and report
+    // ✅ Update database with completion status and report
     await prisma.sourcingJob.update({
       where: { id: state.jobId },
       data: {
         status: "COMPLETED",
         currentStage: "NO_CANDIDATES_FOUND",
+        lastCompletedStage: "handle_no_candidates", // ✅ ADD THIS LINE
         completedAt: new Date(),
         lastActivityAt: new Date(),
         errorMessage: report, // Store report in errorMessage for user to see
@@ -51,9 +52,9 @@ ${recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
       }
     });
     
-    console.log(" Job marked as complete with no candidates found");
+    console.log("✅ Job marked as complete with no candidates found");
     
-    //  Return state update for LangGraph
+    // Return state update for LangGraph
     return {
       currentStage: "NO_CANDIDATES_FOUND",
       errors: [

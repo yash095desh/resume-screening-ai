@@ -15,13 +15,12 @@ export interface LinkedInSearchFilters {
   locations?: string[];
   currentCompanies?: string[];
   industryIds?: number[];
-  yearsOfExperienceIds?: string[];  // ✅ NEW
-  seniorityLevelIds?: string[];     // ✅ NEW
+  yearsOfExperienceIds?: string[]; // ✅ NEW
+  seniorityLevelIds?: string[]; // ✅ NEW
   maxItems?: number;
   takePages?: number;
   _meta?: any;
 }
-
 
 export interface ProfileSearchResult {
   profileUrl: string;
@@ -85,10 +84,7 @@ export async function searchLinkedInProfiles(
       actorInput.pastJobTitles = normalizedFilters.pastJobTitles;
     }
 
-    if (
-      normalizedFilters.locations &&
-      normalizedFilters.locations.length > 0
-    ) {
+    if (normalizedFilters.locations && normalizedFilters.locations.length > 0) {
       actorInput.locations = normalizedFilters.locations;
     }
 
@@ -106,16 +102,24 @@ export async function searchLinkedInProfiles(
       actorInput.industryIds = normalizedFilters.industryIds;
     }
 
-
-    if (normalizedFilters.yearsOfExperienceIds && normalizedFilters.yearsOfExperienceIds.length > 0) {
+    if (
+      normalizedFilters.yearsOfExperienceIds &&
+      normalizedFilters.yearsOfExperienceIds.length > 0
+    ) {
       actorInput.yearsOfExperienceIds = normalizedFilters.yearsOfExperienceIds;
     }
 
-    if (normalizedFilters.seniorityLevelIds && normalizedFilters.seniorityLevelIds.length > 0) {
+    if (
+      normalizedFilters.seniorityLevelIds &&
+      normalizedFilters.seniorityLevelIds.length > 0
+    ) {
       actorInput.seniorityLevelIds = normalizedFilters.seniorityLevelIds;
     }
 
-    console.log("🔧 Actor input (sending to Apify):", JSON.stringify(actorInput, null, 2));
+    console.log(
+      "🔧 Actor input (sending to Apify):",
+      JSON.stringify(actorInput, null, 2)
+    );
 
     const run = await client
       .actor("harvestapi/linkedin-profile-search")
@@ -123,17 +127,31 @@ export async function searchLinkedInProfiles(
 
     if (run.statusMessage === "rate limited") {
       const resetAt = new Date();
-      resetAt.setHours(resetAt.getHours() + 1, 0, 0);
+      resetAt.setHours(resetAt.getHours() + 1, 0, 0); // Default: next hour
 
       throw new RateLimitError("LinkedIn search API rate limit exceeded", {
         type: "apify_search",
         resetAt,
+        message: "Profile search limit reached. Will retry automatically.",
       });
     }
 
-    const { items } = await client
-      .dataset(run.defaultDatasetId)
-      .listItems();
+    // Also add check for run.status:
+    if (
+      run.status === "FAILED" &&
+      run.statusMessage?.toLowerCase().includes("limit")
+    ) {
+      const resetAt = new Date();
+      resetAt.setHours(resetAt.getHours() + 1, 0, 0);
+
+      throw new RateLimitError("LinkedIn search API limit exceeded", {
+        type: "apify_search",
+        resetAt,
+        message: run.statusMessage || "Profile search limit reached.",
+      });
+    }
+
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
     console.log(`✅ Found ${items.length} profiles from search`);
 
@@ -176,12 +194,11 @@ export async function scrapeLinkedInProfiles(
       `🔍 Starting profile scraping for ${profileUrls.length} profiles...`
     );
 
-    const run = await client
-      .actor("dev_fusion/linkedin-profile-scraper")
-      .call({
-        profileUrls,
-      });
+    const run = await client.actor("dev_fusion/linkedin-profile-scraper").call({
+      profileUrls,
+    });
 
+    // In scrapeLinkedInProfiles (around line 205):
     if (run.statusMessage === "rate limited") {
       const resetAt = new Date();
       resetAt.setHours(resetAt.getHours() + 1, 0, 0);
@@ -189,12 +206,23 @@ export async function scrapeLinkedInProfiles(
       throw new RateLimitError("LinkedIn scraping API rate limit exceeded", {
         type: "apify_scrape",
         resetAt,
+        message: "Profile scraping limit reached. Will retry automatically."
       });
     }
 
-    const { items } = await client
-      .dataset(run.defaultDatasetId)
-      .listItems();
+    // Also add:
+    if (run.status === "FAILED" && run.statusMessage?.toLowerCase().includes("limit")) {
+      const resetAt = new Date();
+      resetAt.setHours(resetAt.getHours() + 1, 0, 0);
+      
+      throw new RateLimitError("LinkedIn scraping API limit exceeded", {
+        type: "apify_scrape",
+        resetAt,
+        message: run.statusMessage || "Profile scraping limit reached."
+      });
+    }
+
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
     console.log(`✅ Scraped ${items.length} profiles successfully`);
 

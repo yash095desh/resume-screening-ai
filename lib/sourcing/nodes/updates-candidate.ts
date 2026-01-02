@@ -135,6 +135,7 @@ export async function updateCandidates(state: SourcingState) {
       profilesSaved: alreadyUpdated.length + updated,
       status: "SAVING_PROFILES",
       currentStage: "UPDATE_COMPLETE",
+      lastCompletedStage: "update_candidates", // ✅ ADD THIS LINE
       lastActivityAt: new Date()
     }
   });

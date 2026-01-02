@@ -1,222 +1,123 @@
 import { NextRequest, NextResponse } from "next/server";
-// import { auth } from "@clerk/nextjs/server";
-// import { prisma } from "@/lib/prisma";
-// import { processSourcingJobWithCheckpoints } from "@/lib/processing/pipeline-processor-v2";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+import { createSourcingWorkflow, buildResumeState } from "@/lib/sourcing/workflow";
 
 /**
- * POST /api/sourcing/:jobId/retry
- * Retry a failed or rate-limited sourcing job
+ * POST /api/sourcing/[jobId]/retry - Retry failed job from last checkpoint
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-//     const { userId } = await auth();
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-//     if (!userId) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
+    const { jobId } = await params;
 
-//     const { jobId } = await params;
+    // Verify ownership and check if retryable
+    const job = await prisma.sourcingJob.findUnique({
+      where: { id: jobId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        retryCount: true,
+        maxRetries: true,
+        lastCompletedStage: true,
+      },
+    });
 
-//     // Fetch the job
-//     const job = await prisma.sourcingJob.findUnique({
-//       where: { id: jobId, userId },
-//     });
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
 
-//     if (!job) {
-//       return NextResponse.json({ error: "Job not found" }, { status: 404 });
-//     }
+    if (job.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
 
-//     // Check if job is in a retriable state
-//     const retriableStatuses = [
-//       "FAILED",
-//       "RATE_LIMITED",
-//       "FORMATTING_JD",
-//       "SEARCHING_PROFILES",
-//       "SCRAPING_PROFILES",
-//       "PARSING_PROFILES",
-//       "SAVING_PROFILES",
-//       "SCORING_PROFILES",
-//     ];
+    // Check if job can be retried
+    const retryableStatuses = ["FAILED", "RATE_LIMITED"];
+    if (!retryableStatuses.includes(job.status)) {
+      return NextResponse.json(
+        { error: `Cannot retry job with status: ${job.status}` },
+        { status: 400 }
+      );
+    }
 
-//     if (!retriableStatuses.includes(job.status)) {
-//       if (job.status === "COMPLETED") {
-//         return NextResponse.json(
-//           { error: "Job already completed" },
-//           { status: 400 }
-//         );
-//       }
+    // Check retry limit
+    if (job.retryCount >= job.maxRetries) {
+      return NextResponse.json(
+        { error: `Max retries (${job.maxRetries}) exceeded` },
+        { status: 400 }
+      );
+    }
 
-//       return NextResponse.json(
-//         { error: `Cannot retry job with status: ${job.status}` },
-//         { status: 400 }
-//       );
-//     }
+    console.log(`🔄 Retrying job ${jobId} (attempt ${job.retryCount + 1}/${job.maxRetries})`);
+    console.log(`📍 Resuming from stage: ${job.lastCompletedStage || "START"}`);
 
-//     // Check rate limit status
-//     if (job.status === "RATE_LIMITED") {
-//       if (job.rateLimitResetAt && new Date() < job.rateLimitResetAt) {
-//         const secondsLeft = Math.ceil(
-//           (job.rateLimitResetAt.getTime() - Date.now()) / 1000
-//         );
-//         return NextResponse.json(
-//           {
-//             error: "Still rate limited",
-//             rateLimitType: job.rateLimitType,
-//             resetAt: job.rateLimitResetAt,
-//             retryAfter: secondsLeft,
-//             message: `Please wait ${secondsLeft} seconds before retrying`,
-//           },
-//           { status: 429 }
-//         );
-//       }
-//     }
+    // Reset job status for retry
+    await prisma.sourcingJob.update({
+      where: { id: jobId },
+      data: {
+        status: "CREATED",
+        currentStage: "RETRY_INITIATED",
+        errorMessage: null,
+        failedAt: null,
+        retryCount: { increment: 1 },
+        lastActivityAt: new Date(),
+      },
+    });
 
-//     // Check max retries
-//     if (job.retryCount >= job.maxRetries) {
-//       return NextResponse.json(
-//         {
-//           error: "Max retries exceeded",
-//           retryCount: job.retryCount,
-//           maxRetries: job.maxRetries,
-//           message: `Job has failed ${job.retryCount} times. Maximum retry limit reached.`,
-//         },
-//         { status: 400 }
-//       );
-//     }
+    // Build resume state from checkpoints
+    const resumeState = await buildResumeState(jobId);
 
-//     // Increment retry count
-//     await prisma.sourcingJob.update({
-//       where: { id: jobId },
-//       data: {
-//         retryCount: { increment: 1 },
-//         errorMessage: null, // Clear previous error
-//         failedAt: null,
-//         lastActivityAt: new Date(),
-//       },
-//     });
+    console.log(`📦 Resume state built:`, {
+      candidatesWithEmails: resumeState.candidatesWithEmails,
+      discoveredUrlsCount: resumeState.discoveredUrls.size,
+      scrapedProfilesCount: (resumeState.scrapedProfiles as any[]).length,
+      parsedProfilesCount: (resumeState.parsedProfiles as any[]).length,
+    });
 
-//     console.log(`🔄 Retrying job ${jobId} (attempt ${job.retryCount + 1}/${job.maxRetries})`);
+    // Create workflow and resume
+    const app = await createSourcingWorkflow();
 
-//     // Start processing again (will resume from checkpoint)
-//     processSourcingJobWithCheckpoints(jobId).catch((error) => {
-//       console.error(`Failed to retry job ${jobId}:`, error);
+    // Run asynchronously with same thread_id for checkpoint continuation
+    app.invoke(resumeState as any, {
+        configurable: {
+          thread_id: jobId, // Same thread_id = continue from checkpoint
+        },
+      })
+      .catch(async (error) => {
+        console.error(`Retry of job ${jobId} failed:`, error);
 
-//       // Update job with error
-//       prisma.sourcingJob
-//         .update({
-//           where: { id: jobId },
-//           data: {
-//             status: error.name === "RateLimitError" ? "RATE_LIMITED" : "FAILED",
-//             errorMessage: error.message,
-//             failedAt: error.name !== "RateLimitError" ? new Date() : undefined,
-//             lastActivityAt: new Date(),
-//           },
-//         })
-//         .catch(console.error);
-//     });
-
-//     return NextResponse.json({
-//       success: true,
-//       message: "Job retry initiated. Processing will resume from last checkpoint.",
-//       jobId: job.id,
-//       status: job.status,
-//       currentStage: job.currentStage,
-//       retryCount: job.retryCount + 1,
-//       progress: {
-//         totalProfilesFound: job.totalProfilesFound,
-//         profilesScraped: job.profilesScraped,
-//         profilesParsed: job.profilesParsed,
-//         profilesSaved: job.profilesSaved,
-//         profilesScored: job.profilesScored,
-//       },
-//     });
-//   } catch (error: any) {
-//     console.error("Error retrying sourcing job:", error);
-
-//     return NextResponse.json(
-//       { error: error.message || "Internal server error" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-// /**
-//  * GET /api/sourcing/:jobId/retry
-//  * Check if a job can be retried and get retry status
-//  */
-// export async function GET(
-//   request: NextRequest,
-//   { params }: { params: Promise<{ jobId: string }> }
-// ) {
-//   try {
-//     const { userId } = await auth();
-
-//     if (!userId) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
-
-//     const { jobId } = await params;
-
-//     const job = await prisma.sourcingJob.findUnique({
-//       where: { id: jobId, userId },
-//     });
-
-//     if (!job) {
-//       return NextResponse.json({ error: "Job not found" }, { status: 404 });
-//     }
-
-//     const retriableStatuses = [
-//       "FAILED",
-//       "RATE_LIMITED",
-//       "FORMATTING_JD",
-//       "SEARCHING_PROFILES",
-//       "SCRAPING_PROFILES",
-//       "PARSING_PROFILES",
-//       "SAVING_PROFILES",
-//       "SCORING_PROFILES",
-//     ];
-
-//     const canRetry = retriableStatuses.includes(job.status);
-//     const isRateLimited = job.status === "RATE_LIMITED";
-//     const rateLimitActive =
-//       isRateLimited &&
-//       job.rateLimitResetAt &&
-//       new Date() < job.rateLimitResetAt;
-
-    
-
-//     const maxRetriesReached = job.retryCount >= job.maxRetries;
+        await prisma.sourcingJob.update({
+          where: { id: jobId },
+          data: {
+            status: "FAILED",
+            errorMessage: `Retry failed: ${error.message}`,
+            failedAt: new Date(),
+          },
+        });
+      });
 
     return NextResponse.json({
-      // canRetry:
-      //   canRetry &&
-      //   !rateLimitActive &&
-      //   !maxRetriesReached,
-      // status: job.status,
-      // currentStage: job.currentStage,
-      // retryCount: job.retryCount,
-      // maxRetries: job.maxRetries,
-      // rateLimited: rateLimitActive,
-      // rateLimitType: job.rateLimitType,
-      // rateLimitResetAt: job.rateLimitResetAt,
-      // errorMessage: job.errorMessage,
-      // progress: {
-      //   totalProfilesFound: job.totalProfilesFound,
-      //   profilesScraped: job.profilesScraped,
-      //   profilesParsed: job.profilesParsed,
-      //   profilesSaved: job.profilesSaved,
-      //   profilesScored: job.profilesScored,
-      success: true
-      // },
+      success: true,
+      message: "Job retry initiated",
+      job: {
+        id: job.id,
+        status: "PROCESSING",
+        retryCount: job.retryCount + 1,
+        resumingFrom: job.lastCompletedStage || "START",
+      },
     });
   } catch (error: any) {
-    console.error("Error checking retry status:", error);
-
+    console.error("Error retrying sourcing job:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Failed to retry job" },
       { status: 500 }
     );
   }

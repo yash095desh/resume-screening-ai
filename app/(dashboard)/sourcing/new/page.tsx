@@ -70,6 +70,17 @@ export default function NewSourcingJobPage() {
 
       const data = await response.json();
 
+      if (response.status === 429) {
+    // Rate limited!
+        // showError({
+        //   title: "Service Temporarily Unavailable",
+        //   message: data.message || "Please try again later",
+        //   resetAt: data.resetAt, // Can show countdown
+        // });
+        setError("Service Temporarily Unavailable")
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "Failed to create sourcing job");
       }
@@ -218,7 +229,6 @@ Examples:
             </div>
 
             <Separator />
-
             {/* Years of Experience */}
             <div className="space-y-2">
               <Label htmlFor="yearsOfExperience" className="text-base font-semibold flex items-center gap-2">

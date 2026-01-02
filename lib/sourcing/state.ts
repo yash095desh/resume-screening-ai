@@ -30,6 +30,14 @@ export const SourcingStateAnnotation = Annotation.Root({
     },
     default: () => new Set()
   }),
+
+  enrichedUrls: Annotation<Set<string>>({
+    reducer: (current, update) => {
+      if (!update) return current;
+      return new Set([...Array.from(current), ...Array.from(update)]);
+    },
+    default: () => new Set()
+  }),
   
   currentSearchResults: Annotation<any[]>({
     reducer: (current, update) => update ?? current,
@@ -43,10 +51,16 @@ export const SourcingStateAnnotation = Annotation.Root({
   
   // === Candidate Tracking ===
   candidatesWithEmails: Annotation<number>({
-    reducer: (current, update) => update ?? current,
+    reducer: (current, update) => {
+      // Always use the update if provided (it's the latest count)
+      if (update !== undefined && update !== null) {
+        return update;
+      }
+      return current;
+    },
     default: () => 0
   }),
-  
+
   // === Scraping & Parsing ===
   scrapedProfiles: Annotation<any[]>({
     reducer: (current, update) => update ?? current,

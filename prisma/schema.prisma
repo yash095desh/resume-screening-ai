@@ -122,8 +122,9 @@ model SourcingJob {
   // === CHECKPOINT DATA (for resume support) ===
   searchFilters         Json?               // Stage 1: Format JD
   discoveredUrls        Json?               // Stage 2: Search
-  scrapedProfilesData   Json?               // Stage 3: Scrape
-  parsedProfilesData    Json?               // Stage 4: Parse
+  enrichedUrls          Json?               //  Stage 3: All enrichment attempts (success + failure)
+  scrapedProfilesData   Json?               // Stage 4: Scrape
+  parsedProfilesData    Json?               // Stage 5: Parse
   
   // === PROGRESS TRACKING (for SSE UI) ===
   status                SourcingJobStatus   @default(CREATED)
@@ -133,11 +134,13 @@ model SourcingJob {
   profilesParsed        Int                 @default(0)
   profilesSaved         Int                 @default(0)
   profilesScored        Int                 @default(0)
+
+  lastCompletedStage    String?  
   
   // === RATE LIMITING ===
   rateLimitHitAt        DateTime?
   rateLimitResetAt      DateTime?
-  rateLimitType         String?
+  rateLimitService      String?              // "salesql" | "apify_search" | "apify_scrape"
   
   // === ERROR HANDLING ===
   errorMessage          String?             @db.Text
@@ -277,8 +280,6 @@ model LinkedInCandidate {
   //  NEW: SKILL ANALYSIS ENHANCEMENT
   // ============================================
   
-  // Already have: matchedSkills, missingSkills, bonusSkills
-  // Add proficiency levels and details
   
   skillsProficiency         Json?             // { skill: proficiencyLevel (1-5) }
   criticalGaps              Json?             // Array of most important missing skills

@@ -108,6 +108,7 @@ export async function parseCandidates(state: SourcingState) {
     data: {
       status: "PARSING_PROFILES",
       currentStage: "PARSING_COMPLETE",
+      lastCompletedStage: "parse_candidates", // ✅ ADD THIS LINE
       lastActivityAt: new Date()
     }
   });

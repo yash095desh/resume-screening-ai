@@ -193,6 +193,7 @@ export async function scoreAllCandidates(state: SourcingState) {
     data: {
       status: "COMPLETED",
       currentStage: "SCORING_COMPLETE",
+      lastCompletedStage: "score_all", // ✅ ADD THIS LINE
       completedAt: new Date(),
       lastActivityAt: new Date()
     }
