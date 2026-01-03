@@ -9,9 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { toast } from "sonner"
+import { useApiClient } from '@/lib/api/client';
 
 export default function NewJobPage() {
   const router = useRouter();
+  const { post } = useApiClient();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -23,18 +25,12 @@ export default function NewJobPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const { res , data: job  } = await post('/api/jobs',formData);
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (!res.ok) {
+        const error = await res.json();
         throw new Error(error.error || 'Failed to create job');
       }
-
-      const job = await response.json();
 
       toast.success( 'Job created successfully. AI is analyzing the job description...');
 

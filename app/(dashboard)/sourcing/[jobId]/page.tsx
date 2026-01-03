@@ -52,6 +52,9 @@ import {
   Calculator,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useApiClient } from "@/lib/api/client";
+import { fetchEventSource } from "@microsoft/fetch-event-source"
+import { useAuth } from "@clerk/nextjs";
 
 interface Candidate {
   id: string;
@@ -108,9 +111,13 @@ interface JobData {
   candidates: Candidate[];
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function SourcingJobDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { getToken } = useAuth();
+  const { get , del } = useApiClient();
   const jobId = params.jobId as string;
 
   const [job, setJob] = useState<JobData | null>(null);
@@ -125,129 +132,156 @@ export default function SourcingJobDetailPage() {
   const [filterContact, setFilterContact] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("score-desc");
 
-  useEffect(() => {
-    let eventSource: EventSource | null = null;
-    let reconnectAttempts = 0;
-    const maxReconnects = 3;
+    useEffect(() => {
+      let abortController: AbortController | null = null;
+      let reconnectAttempts = 0;
+      const maxReconnects = 3;
+      let reconnectTimeout: NodeJS.Timeout | null = null;
 
-    const connectSSE = () => {
-      // Don't connect SSE if job is in terminal or rate-limited state
-      if (job && ["COMPLETED", "FAILED", "RATE_LIMITED"].includes(job.status)) {
-        console.log(
-          "Job in terminal/rate-limited state, skipping SSE connection"
-        );
-        return;
-      }
-
-      eventSource = new EventSource(`/api/sourcing/${jobId}/stream`);
-
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("SSE Update received:", data);
-
-        if (data.type === "connected") {
-          console.log("SSE connected successfully");
-          reconnectAttempts = 0;
-        } else if (data.type === "update") {
-          setJob((prev) => {
-            const updated = {
-              ...prev!,
-              status: data.status,
-              currentStage: data.currentStage,
-              totalProfilesFound:
-                data.progress?.totalFound ?? prev?.totalProfilesFound ?? 0,
-              profilesScraped:
-                data.progress?.scraped ?? prev?.profilesScraped ?? 0,
-              profilesParsed:
-                data.progress?.parsed ?? prev?.profilesParsed ?? 0,
-              profilesSaved: data.progress?.saved ?? prev?.profilesSaved ?? 0,
-              profilesScored:
-                data.progress?.scored ?? prev?.profilesScored ?? 0,
-              progress: {
-                percentage:
-                  data.progress?.percentage ?? prev?.progress?.percentage ?? 0,
-              },
-              candidates: data.candidates || prev?.candidates || [],
-              lastActivityAt: data.lastActivityAt || prev?.lastActivityAt,
-              errorMessage: data.errorMessage || prev?.errorMessage,
-              rateLimitHitAt: data.rateLimitHitAt || prev?.rateLimitHitAt,
-              rateLimitResetAt: data.rateLimitResetAt || prev?.rateLimitResetAt,
-              rateLimitService: data.rateLimitService || prev?.rateLimitService,
-            };
-            return updated;
-          });
-          setIsLoading(false);
-        } else if (data.type === "rate_limited") {
-          console.log("Job rate limited:", data);
-          setJob((prev) => ({
-            ...prev!,
-            status: "RATE_LIMITED",
-            errorMessage:
-              data.message || prev?.errorMessage || "Rate limit reached",
-            rateLimitHitAt: data.hitAt,
-            rateLimitResetAt: data.resetAt,
-            rateLimitService: data.service,
-          }));
-          setIsLoading(false);
-          eventSource?.close();
-        } else if (data.type === "complete") {
-          console.log("Job complete, closing SSE and fetching final data");
-          eventSource?.close();
-          fetchJobData();
-        } else if (data.type === "error") {
-          console.error("SSE Error:", data.message);
-          setError(data.message);
-          setIsLoading(false);
-          eventSource?.close();
+      const connectSSE = async () => {
+        // Don't connect if job is already in terminal state
+        if (job && ['COMPLETED', 'FAILED', 'RATE_LIMITED'].includes(job.status)) {
+          console.log('Job in terminal state, skipping SSE');
+          return;
         }
-      };
 
-      eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
-        eventSource?.close();
+        abortController = new AbortController();
+        const token = await getToken();
 
-        reconnectAttempts++;
-        if (reconnectAttempts <= maxReconnects) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
-          console.log(
-            `Reconnecting SSE in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnects})`
-          );
-          setTimeout(() => {
-            fetchJobData();
-            connectSSE();
-          }, delay);
-        } else {
-          console.log(
-            "Max reconnect attempts reached, falling back to polling"
-          );
-          const pollInterval = setInterval(() => {
-            fetchJobData().then((data) => {
-              if (
-                data &&
-                ["COMPLETED", "FAILED", "RATE_LIMITED"].includes(data.status)
-              ) {
-                clearInterval(pollInterval);
+        console.log(`📡 Connecting to SSE for job ${jobId}...`);
+
+        try {
+          await fetchEventSource(`${API_URL}/api/sourcing/stream/${jobId}`, {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Accept': 'text/event-stream',
+            },
+            signal: abortController.signal,
+
+            async onopen(response) {
+              if (response.ok) {
+                console.log('✅ SSE connection established');
+                reconnectAttempts = 0; // Reset on successful connection
+                return;
               }
-            });
-          }, 5000);
+              
+              // Handle non-200 responses
+              if (response.status === 403) {
+                console.error('❌ Unauthorized access to job');
+                throw new Error('Unauthorized access to this job');
+              }
+              
+              throw new Error(`Connection failed: ${response.status}`);
+            },
+
+            onmessage(event) {
+              try {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'connected') {
+                  console.log('SSE connected, jobId:', data.jobId);
+                  reconnectAttempts = 0;
+                } 
+                
+                else if (data.type === 'update') {
+                  console.log('Received update:', data.currentStage, data.progress?.percentage + '%');
+                  
+                  setJob((prev) => {
+                    if (!prev) return null;
+                    
+                    return {
+                      ...prev,
+                      status: data.status,
+                      currentStage: data.currentStage,
+                      totalProfilesFound: data.progress?.totalFound ?? prev.totalProfilesFound,
+                      profilesScraped: data.progress?.scraped ?? prev.profilesScraped,
+                      profilesParsed: data.progress?.parsed ?? prev.profilesParsed,
+                      profilesSaved: data.progress?.saved ?? prev.profilesSaved,
+                      profilesScored: data.progress?.scored ?? prev.profilesScored,
+                      progress: { percentage: data.progress?.percentage ?? prev.progress.percentage },
+                      candidates: data.candidates || prev.candidates,
+                      lastActivityAt: data.lastActivityAt,
+                    };
+                  });
+                  
+                  setIsLoading(false);
+                } 
+                
+                else if (data.type === 'complete') {
+                  console.log('✅ Job complete:', data.status);
+                  abortController?.abort();
+                  // Fetch final state
+                  fetchJobData();
+                }
+                
+                else if (data.type === 'error') {
+                  console.error('SSE error message:', data.message);
+                  setError(data.message);
+                }
+              } catch (err) {
+                console.error('Error parsing SSE message:', err);
+              }
+            },
+
+            onerror(err) {
+              console.error('SSE connection error:', err);
+              
+              // Don't reconnect if aborted intentionally
+              if (abortController?.signal.aborted) {
+                return;
+              }
+
+              // Check if we should retry
+              reconnectAttempts++;
+              if (reconnectAttempts <= maxReconnects) {
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnects})...`);
+                
+                reconnectTimeout = setTimeout(() => {
+                  fetchJobData().then(() => {
+                    connectSSE();
+                  });
+                }, delay);
+              } else {
+                console.error('❌ Max reconnection attempts reached');
+                setError('Lost connection to server. Please refresh the page.');
+              }
+              
+              // Let fetchEventSource handle the reconnection
+              throw err;
+            },
+
+            // Disable automatic reconnection - we'll handle it manually
+            openWhenHidden: false,
+          });
+        } catch (error) {
+          console.error('Failed to establish SSE connection:', error);
         }
       };
-    };
 
-    fetchJobData();
-    connectSSE();
+      // Initial data fetch
+      fetchJobData().then((initialJob) => {
+        // Only connect SSE if job is still processing
+        if (initialJob && !['COMPLETED', 'FAILED', 'RATE_LIMITED'].includes(initialJob.status)) {
+          connectSSE();
+        }
+      });
 
-    return () => {
-      eventSource?.close();
-    };
-  }, [jobId]);
+      // Cleanup
+      return () => {
+        console.log('🧹 Cleaning up SSE connection');
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+        abortController?.abort();
+      };
+    }, [jobId]);
 
   const fetchJobData = async () => {
     try {
-      const response = await fetch(`/api/sourcing/${jobId}?include=candidates`);
-      const data = await response.json();
+      const { data , res } = await get(`/api/sourcing/${jobId}?include=candidates`);
 
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error(data.error || "Failed to fetch job");
       }
 
@@ -263,11 +297,9 @@ export default function SourcingJobDetailPage() {
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/sourcing/${jobId}`, {
-        method: "DELETE",
-      });
+      const { res } = await del(`/api/sourcing/${jobId}`);
 
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error("Failed to delete job");
       }
 
@@ -283,13 +315,9 @@ export default function SourcingJobDetailPage() {
       setError(null);
       setIsLoading(true);
 
-      const response = await fetch(`/api/sourcing/${jobId}/retry`, {
-        method: "POST",
-      });
+      const { data, res  } = await get(`/api/sourcing/retry/${jobId}`);
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error(data.error || "Failed to retry job");
       }
 

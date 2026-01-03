@@ -35,8 +35,10 @@ import {
   Clock
 } from "lucide-react";
 import Link from "next/link";
+import { useApiClient } from "@/lib/api/client";
 
 export default function NewSourcingJobPage() {
+  const { post } = useApiClient(); 
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,26 +64,14 @@ export default function NewSourcingJobPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/sourcing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+       const { res, data, status } = await post('/api/sourcing', formData);
 
-      const data = await response.json();
-
-      if (response.status === 429) {
-    // Rate limited!
-        // showError({
-        //   title: "Service Temporarily Unavailable",
-        //   message: data.message || "Please try again later",
-        //   resetAt: data.resetAt, // Can show countdown
-        // });
+      if (status === 429) {
         setError("Service Temporarily Unavailable")
         return;
       }
 
-      if (!response.ok) {
+      if (!res.ok) {
         throw new Error(data.error || "Failed to create sourcing job");
       }
 

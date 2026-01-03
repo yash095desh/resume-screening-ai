@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from "sonner"
 import { useParams } from 'next/navigation';
+import { useApiClient } from '@/lib/api/client';
 
 interface Candidate {
   id: string;
@@ -59,6 +60,7 @@ interface Candidate {
 
 export default function CandidateDetailPage() {
   const params = useParams();
+  const { get } = useApiClient();
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,12 +70,12 @@ export default function CandidateDetailPage() {
 
   const fetchCandidate = async () => {
     try {
-      const response = await fetch(`/api/candidates/${params.candidateId}`);
-      if (!response.ok) throw new Error('Failed to fetch candidate');
-      const data = await response.json();
+      const { res , data  } = await get(`/api/candidates/${params.candidateId}`);
+      if (!res.ok) throw new Error('Failed to fetch candidate');
       setCandidate(data);
     } catch (error) {
       toast.error( 'Failed to load candidate details.');
+      console.log('Failed to load candidate details.', (error as Error).message)
     } finally {
       setLoading(false);
     }

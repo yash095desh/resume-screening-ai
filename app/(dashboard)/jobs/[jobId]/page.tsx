@@ -31,6 +31,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { toast } from "sonner"
+import { useApiClient } from '@/lib/api/client';
 
 interface Candidate {
   id: string;
@@ -55,6 +56,7 @@ interface Job {
 
 export default function CandidateRankingsPage() {
   const params = useParamsHook();
+  const { get , post } = useApiClient();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,12 +72,12 @@ export default function CandidateRankingsPage() {
 
   const fetchJob = async () => {
     try {
-      const response = await fetch(`/api/jobs/${params.jobId}`);
-      if (!response.ok) throw new Error('Failed to fetch job');
-      const data = await response.json();
+      const { res , data } = await get(`/api/jobs/${params.jobId}`);
+      if (!res.ok) throw new Error('Failed to fetch job');
       setJob(data);
     } catch (error) {
       toast.error( 'Failed to load job details.');
+      console.log('Failed to load job details.',(error as Error).message)
     } finally {
       setLoading(false);
     }
@@ -84,18 +86,15 @@ export default function CandidateRankingsPage() {
   const handleProcess = async () => {
     setProcessing(true);
     try {
-      const response = await fetch(`/api/jobs/${params.jobId}/process`, {
-        method: 'POST',
-      });
+      const { res } = await post(`/api/jobs/process/${params.jobId}`);
 
-      if (!response.ok) throw new Error('Processing failed');
+      if (!res.ok) throw new Error('Processing failed');
 
       toast.info( 'Resumes are being analyzed. This may take a few minutes.');
 
       // Poll for updates
       const interval = setInterval(async () => {
-        const updated = await fetch(`/api/jobs/${params.jobId}`);
-        const data = await updated.json();
+        const { data } = await get(`/api/jobs/${params.jobId}`);
         setJob(data);
 
         if (data.status === 'completed') {
