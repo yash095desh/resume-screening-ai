@@ -8,13 +8,15 @@ datasource db {
 }
 
 model User {
-  id           String        @id
-  email        String        @unique
-  name         String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  sourcingJobs SourcingJob[]
-  jobs         Job[]
+  id            String         @id
+  email         String         @unique
+  name          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sourcingJobs  SourcingJob[]
+  jobs          Job[]
+  subscriptions subscriptions?
+  user_credits  user_credits?
 
   @@map("users")
 }
@@ -217,6 +219,66 @@ model LinkedInCandidate {
   @@index([isOpenToWork])
 }
 
+model credit_transactions {
+  id            String          @id
+  userCreditsId String
+  type          TransactionType
+  category      CreditCategory
+  amount        Int
+  balanceAfter  Int
+  referenceId   String?
+  referenceType String?
+  description   String?
+  createdAt     DateTime        @default(now())
+  user_credits  user_credits    @relation(fields: [userCreditsId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userCreditsId])
+}
+
+model plans {
+  id               String          @id
+  name             String
+  slug             String          @unique
+  priceInRupees    Int
+  sourcingCredits  Int
+  screeningCredits Int
+  billingCycle     String          @default("monthly")
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime
+  subscriptions    subscriptions[]
+}
+
+model subscriptions {
+  id                 String             @id
+  userId             String             @unique
+  planId             String
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime
+  cancelledAt        DateTime?
+  plans              plans              @relation(fields: [planId], references: [id])
+  users              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, currentPeriodEnd])
+  @@index([userId])
+}
+
+model user_credits {
+  id                  String                @id
+  userId              String                @unique
+  sourcingCredits     Int                   @default(0)
+  screeningCredits    Int                   @default(0)
+  lastResetAt         DateTime              @default(now())
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  credit_transactions credit_transactions[]
+  users               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 enum SourcingJobStatus {
   CREATED
   FORMATTING_JD
@@ -244,4 +306,23 @@ enum CandidateEnrichmentStatus {
   ENRICHED
   NO_EMAIL_FOUND
   SKIPPED
+}
+
+enum CreditCategory {
+  SOURCING
+  SCREENING
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING
+}
+
+enum TransactionType {
+  CREDIT
+  DEBIT
+  RESET
+  REFUND
 }

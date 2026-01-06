@@ -38,10 +38,11 @@ import Link from "next/link";
 import { useApiClient } from "@/lib/api/client";
 
 export default function NewSourcingJobPage() {
-  const { post } = useApiClient(); 
+  const { post } = useApiClient();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCustomCandidates, setIsCustomCandidates] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -463,10 +464,16 @@ The more detailed your description, the better the AI can match candidates!"
                 Maximum Candidates to Source
               </Label>
               <Select
-                value={formData.maxCandidates.toString()}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, maxCandidates: parseInt(value) })
-                }
+                value={isCustomCandidates ? "custom" : formData.maxCandidates.toString()}
+                onValueChange={(value) => {
+                  if (value === "custom") {
+                    setIsCustomCandidates(true);
+                    setFormData({ ...formData, maxCandidates: 50 });
+                  } else {
+                    setIsCustomCandidates(false);
+                    setFormData({ ...formData, maxCandidates: parseInt(value) });
+                  }
+                }}
               >
                 <SelectTrigger className="text-base">
                   <SelectValue />
@@ -502,8 +509,30 @@ The more detailed your description, the better the AI can match candidates!"
                       <Badge variant="secondary" className="text-xs">~12 min</Badge>
                     </div>
                   </SelectItem>
+                  <SelectItem value="custom">
+                    <div className="flex items-center gap-2">
+                      <span>Custom amount</span>
+                      <Badge variant="secondary" className="text-xs">Enter manually</Badge>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Conditional Input field for custom amount */}
+              {isCustomCandidates && (
+                <Input
+                  type="number"
+                  min="1"
+                  max="500"
+                  placeholder="Enter number of candidates (1-500)..."
+                  value={formData.maxCandidates}
+                  onChange={(e) =>
+                    setFormData({ ...formData, maxCandidates: parseInt(e.target.value) || 1 })
+                  }
+                  className="text-base"
+                />
+              )}
+
               <p className="text-xs text-gray-500">
                 More candidates = better selection, but takes longer to process
               </p>

@@ -359,7 +359,7 @@ export default function CandidateDetailPage() {
   const readinessConfig = getReadinessConfig(candidate.interviewReadiness);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-white to-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -401,7 +401,7 @@ export default function CandidateDetailPage() {
                 <div className="flex items-start gap-4">
                   <Avatar className="h-20 w-20 shrink-0 ring-4 ring-slate-100">
                     <AvatarImage src={candidate.photoUrl || undefined} alt={candidate.fullName} />
-                    <AvatarFallback className="text-xl font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                    <AvatarFallback className="text-xl font-bold bg-linear-to-br from-blue-500 to-blue-600 text-white">
                       {candidate.fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                     </AvatarFallback>
                   </Avatar>
