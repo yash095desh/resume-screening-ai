@@ -28,8 +28,7 @@ export default function NewJobPage() {
       const { res , data: job  } = await post('/api/jobs',formData);
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to create job');
+        throw new Error(job.error || 'Failed to create job');
       }
 
       toast.success( 'Job created successfully. AI is analyzing the job description...');

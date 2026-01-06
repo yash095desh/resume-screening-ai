@@ -30,24 +30,47 @@ export async function uploadToSupabase(
   path: string
 ): Promise<string> {
   try {
-    const { error } = await supabase.storage.from(bucket).upload(path, file, {
-      contentType: "application/octet-stream",
-      upsert: true,
-    });
+    // Validate inputs
+    if (!file || file.length === 0) {
+      throw new Error("File buffer is empty");
+    }
+
+    if (!bucket || !path) {
+      throw new Error("Bucket and path are required");
+    }
+
+    // Determine content type from file extension
+    const contentType = getMimeTypeFromPath(path);
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        contentType,
+        upsert: true,
+        cacheControl: '3600', // Cache for 1 hour
+      });
 
     if (error) {
+      // Provide more specific error messages
+      if (error.message.includes('Bucket not found')) {
+        throw new Error(`Storage bucket "${bucket}" does not exist`);
+      }
+      if (error.message.includes('exceeded')) {
+        throw new Error('Storage quota exceeded');
+      }
       throw new Error(`Supabase upload failed: ${error.message}`);
     }
 
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    
-    if (!data?.publicUrl) {
+    // Get public URL
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+
+    if (!urlData?.publicUrl) {
       throw new Error("Failed to generate public URL");
     }
 
-    return data.publicUrl;
+    return urlData.publicUrl;
   } catch (err: any) {
-    console.error("uploadToSupabase error:", err);
+    console.error("uploadToSupabase error:", { path, error: err.message });
     throw new Error(err?.message || "Failed to upload file to storage");
   }
 }
