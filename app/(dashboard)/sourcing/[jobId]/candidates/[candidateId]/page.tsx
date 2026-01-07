@@ -239,6 +239,7 @@ export default function CandidateDetailPage() {
       setIsLoading(false);
     } catch (err: any) {
       setError(err.message);
+      console.log(err)
       setIsLoading(false);
     }
   };
