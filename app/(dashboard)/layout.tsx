@@ -1,6 +1,6 @@
 import { UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { LayoutDashboard, Settings, Upload, Search } from 'lucide-react';
+import { LayoutDashboard, Settings, Upload, Search, Video, Mail } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -59,6 +59,41 @@ export default function DashboardLayout({
                 <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                   NEW
                 </span>
+              </Link>
+            </div>
+
+            {/* Interviews Section */}
+            <div className="pt-4">
+              <p className="text-xs font-semibold text-gray-500 px-4 mb-2">
+                INTERVIEWS
+              </p>
+              <Link
+                href="/interviews/schedule"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-green-50 hover:text-green-700"
+              >
+                <Mail size={20} />
+                <span>Schedule</span>
+              </Link>
+              <Link
+                href="/interviews/tracking"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-green-50 hover:text-green-700"
+              >
+                <Video size={20} />
+                <span>Tracking</span>
+              </Link>
+            </div>
+
+            {/* Templates */}
+            <div className="pt-4">
+              <p className="text-xs font-semibold text-gray-500 px-4 mb-2">
+                CONFIGURATION
+              </p>
+              <Link
+                href="/templates"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-gray-100"
+              >
+                <Mail size={20} />
+                <span>Email Templates</span>
               </Link>
             </div>
 
