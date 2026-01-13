@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,9 +66,17 @@ export default function EditTemplatePage() {
 
   function insertVariable(variable: string, field: 'subject' | 'body') {
     if (field === 'subject') {
-      setSubject(prev => prev + variable);
+      setSubject(prev => prev + ' ' + variable);
     } else {
-      setBodyHtml(prev => prev + variable);
+      // Insert variable at the end with a space
+      setBodyHtml(prev => {
+        // If content is empty or just default tags, add the variable directly
+        if (!prev || prev === '<p></p>') {
+          return `<p>${variable}</p>`;
+        }
+        // Otherwise append the variable
+        return prev.replace(/<\/p>$/, ` ${variable}</p>`);
+      });
     }
   }
 
@@ -220,17 +228,16 @@ export default function EditTemplatePage() {
                 {/* Email Body */}
                 <div className="space-y-2">
                   <Label htmlFor="bodyHtml">
-                    Email Body (HTML) <span className="text-red-500">*</span>
+                    Email Body <span className="text-red-500">*</span>
                   </Label>
-                  <Textarea
-                    id="bodyHtml"
+                  <RichTextEditor
                     value={bodyHtml}
-                    onChange={(e) => setBodyHtml(e.target.value)}
-                    placeholder="Enter your email content here. Use HTML tags for formatting..."
-                    rows={15}
-                    className="font-mono text-sm"
-                    required
+                    onChange={setBodyHtml}
+                    placeholder="Enter your email content here..."
                   />
+                  <p className="text-sm text-muted-foreground">
+                    Click the buttons below to insert variables into your email
+                  </p>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {AVAILABLE_VARIABLES.map(variable => (
                       <Button
@@ -325,19 +332,18 @@ export default function EditTemplatePage() {
             </CardContent>
           </Card>
 
-          {/* HTML Tips */}
+          {/* Editor Tips */}
           <Card>
             <CardHeader>
-              <CardTitle>HTML Tips</CardTitle>
+              <CardTitle>Editor Tips</CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-2">
-              <p>Use these HTML tags for formatting:</p>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li><code>&lt;p&gt;</code> for paragraphs</li>
-                <li><code>&lt;strong&gt;</code> for bold text</li>
-                <li><code>&lt;em&gt;</code> for italic text</li>
-                <li><code>&lt;a href=""&gt;</code> for links</li>
-                <li><code>&lt;ul&gt;&lt;li&gt;</code> for lists</li>
+                <li>Use the toolbar to format text (bold, italic, lists, etc.)</li>
+                <li>Click variable buttons to insert them into your email</li>
+                <li>Add headings for better email structure</li>
+                <li>Use bullet points or numbered lists for clarity</li>
+                <li>Add links using the link button in the toolbar</li>
               </ul>
             </CardContent>
           </Card>

@@ -1,6 +1,6 @@
 import { UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { LayoutDashboard, Settings, Upload, Search, Video, Mail } from 'lucide-react';
+import { LayoutDashboard, Settings, Upload, Search, Video, Mail, CheckCircle } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -80,6 +80,13 @@ export default function DashboardLayout({
               >
                 <Video size={20} />
                 <span>Tracking</span>
+              </Link>
+              <Link
+                href="/interviews/results"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-green-50 hover:text-green-700"
+              >
+                <CheckCircle size={20} />
+                <span>Results</span>
               </Link>
             </div>
 

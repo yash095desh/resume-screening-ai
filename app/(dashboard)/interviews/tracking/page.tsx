@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Calendar,
   Clock,
@@ -19,7 +21,11 @@ import {
   Send,
   RotateCcw,
   Eye,
-  Loader2
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Briefcase,
+  Copy
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
@@ -37,6 +43,10 @@ interface Interview {
   abandonedAt?: string;
   duration?: number;
   remindersSent: number;
+  lastReminderAt?: string;
+  scheduledSendAt?: string;
+  enable24hReminder: boolean;
+  enable6hReminder: boolean;
   vapiAssistantId?: string;
   vapiCallId?: string;
   candidate?: {
@@ -61,12 +71,20 @@ interface Interview {
   };
 }
 
+interface GroupedInterviews {
+  jobId: string;
+  jobTitle: string;
+  interviews: Interview[];
+  statusCounts: Record<string, number>;
+}
+
 export default function InterviewTrackingPage() {
   const api = useApiClient();
 
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showScheduled, setShowScheduled] = useState(true);
 
   // Detail modal
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
@@ -75,6 +93,9 @@ export default function InterviewTrackingPage() {
   // Action states
   const [resending, setResending] = useState<string | null>(null);
   const [reminding, setReminding] = useState<string | null>(null);
+
+  // Expansion state
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -92,6 +113,11 @@ export default function InterviewTrackingPage() {
       const { data, ok } = await api.get(endpoint);
       if (ok) {
         setInterviews(data || []);
+        // Auto-expand first job
+        if (data && data.length > 0 && expandedJobs.size === 0) {
+          const firstJobId = getJobId(data[0]);
+          if (firstJobId) setExpandedJobs(new Set([firstJobId]));
+        }
       }
     } catch (error) {
       console.error('Error fetching interviews:', error);
@@ -136,6 +162,71 @@ export default function InterviewTrackingPage() {
     }
   }
 
+  function getJobId(interview: Interview): string {
+    return interview.job?.id || interview.sourcingJob?.id || 'unknown';
+  }
+
+  function getJobTitle(interview: Interview): string {
+    return interview.job?.title || interview.sourcingJob?.jobTitle || 'Unknown Position';
+  }
+
+  function getCandidateName(interview: Interview): string {
+    return interview.candidate?.name || interview.linkedInCandidate?.fullName || 'Unknown';
+  }
+
+  function getCandidateEmail(interview: Interview): string {
+    return interview.candidate?.email || interview.linkedInCandidate?.email || 'N/A';
+  }
+
+  function groupInterviewsByJob(): GroupedInterviews[] {
+    const grouped = new Map<string, GroupedInterviews>();
+
+    // Filter out scheduled interviews from the main list
+    const activeInterviews = interviews.filter(interview => {
+      // An interview is "scheduled" if it's PENDING and has scheduledSendAt
+      return !(interview.status === 'PENDING' && interview.scheduledSendAt);
+    });
+
+    activeInterviews.forEach(interview => {
+      const jobId = getJobId(interview);
+      const jobTitle = getJobTitle(interview);
+
+      if (!grouped.has(jobId)) {
+        grouped.set(jobId, {
+          jobId,
+          jobTitle,
+          interviews: [],
+          statusCounts: {},
+        });
+      }
+
+      const group = grouped.get(jobId)!;
+      group.interviews.push(interview);
+
+      // Count statuses
+      const status = interview.status;
+      group.statusCounts[status] = (group.statusCounts[status] || 0) + 1;
+    });
+
+    return Array.from(grouped.values());
+  }
+
+  function getScheduledInterviews(): Interview[] {
+    return interviews.filter(interview =>
+      interview.status === 'PENDING' && interview.scheduledSendAt
+    );
+  }
+
+  function toggleJobExpansion(jobId: string) {
+    const newExpanded = new Set(expandedJobs);
+    if (newExpanded.has(jobId)) {
+      newExpanded.delete(jobId);
+    } else {
+      newExpanded.add(jobId);
+    }
+    setExpandedJobs(newExpanded);
+  }
+
   function getStatusInfo(status: string) {
     const statusMap: Record<string, { label: string; color: string; icon: any }> = {
       PENDING: { label: 'Pending', color: 'bg-gray-100 text-gray-800', icon: Clock },
@@ -152,18 +243,6 @@ export default function InterviewTrackingPage() {
     return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800', icon: AlertCircle };
   }
 
-  function getCandidateName(interview: Interview): string {
-    return interview.candidate?.name || interview.linkedInCandidate?.fullName || 'Unknown';
-  }
-
-  function getCandidateEmail(interview: Interview): string {
-    return interview.candidate?.email || interview.linkedInCandidate?.email || 'N/A';
-  }
-
-  function getJobTitle(interview: Interview): string {
-    return interview.job?.title || interview.sourcingJob?.jobTitle || 'N/A';
-  }
-
   function canResend(interview: Interview): boolean {
     return ['LINK_SENT', 'LINK_OPENED'].includes(interview.status);
   }
@@ -172,145 +251,18 @@ export default function InterviewTrackingPage() {
     return ['LINK_SENT', 'LINK_OPENED'].includes(interview.status);
   }
 
-  function renderInterviewCard(interview: Interview) {
-    const statusInfo = getStatusInfo(interview.status);
-    const StatusIcon = statusInfo.icon;
-
-    const isExpired = new Date(interview.linkExpiresAt) < new Date();
+  function isExpiringSoon(interview: Interview): boolean {
     const hoursUntilExpiry = (new Date(interview.linkExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60);
-
-    return (
-      <Card key={interview.id} className="hover:shadow-lg transition-shadow">
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">{getCandidateName(interview)}</h3>
-                <p className="text-sm text-muted-foreground">{getCandidateEmail(interview)}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {getJobTitle(interview)}
-                </p>
-              </div>
-
-              <Badge className={statusInfo.color}>
-                <StatusIcon className="mr-1 h-3 w-3" />
-                {statusInfo.label}
-              </Badge>
-            </div>
-
-            {/* Timeline */}
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {interview.linkSentAt && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span>
-                    Sent {formatDistanceToNow(new Date(interview.linkSentAt), { addSuffix: true })}
-                  </span>
-                </div>
-              )}
-
-              {interview.linkOpenedAt && (
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4" />
-                  <span>
-                    Opened {formatDistanceToNow(new Date(interview.linkOpenedAt), { addSuffix: true })}
-                  </span>
-                </div>
-              )}
-
-              {interview.startedAt && (
-                <div className="flex items-center gap-2">
-                  <Video className="h-4 w-4" />
-                  <span>
-                    Started {formatDistanceToNow(new Date(interview.startedAt), { addSuffix: true })}
-                  </span>
-                </div>
-              )}
-
-              {interview.completedAt && (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  <span>
-                    Completed {formatDistanceToNow(new Date(interview.completedAt), { addSuffix: true })}
-                    {interview.duration && ` (${Math.round(interview.duration / 60)} min)`}
-                  </span>
-                </div>
-              )}
-
-              {/* Expiry warning */}
-              {!isExpired && hoursUntilExpiry < 24 && ['LINK_SENT', 'LINK_OPENED'].includes(interview.status) && (
-                <div className="flex items-center gap-2 text-orange-600">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>
-                    Expires in {Math.round(hoursUntilExpiry)} hours
-                  </span>
-                </div>
-              )}
-
-              {/* Reminders sent */}
-              {interview.remindersSent > 0 && (
-                <div className="flex items-center gap-2">
-                  <Send className="h-4 w-4" />
-                  <span>{interview.remindersSent} reminder(s) sent</span>
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-2 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedInterview(interview);
-                  setShowDetailModal(true);
-                }}
-              >
-                View Details
-              </Button>
-
-              {canResend(interview) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => resendInvitation(interview.id)}
-                  disabled={resending === interview.id}
-                >
-                  {resending === interview.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <RotateCcw className="mr-1 h-3 w-3" />
-                      Resend
-                    </>
-                  )}
-                </Button>
-              )}
-
-              {canRemind(interview) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => sendReminder(interview.id, hoursUntilExpiry < 12 ? 'urgent' : 'gentle')}
-                  disabled={reminding === interview.id || interview.remindersSent >= 2}
-                >
-                  {reminding === interview.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Send className="mr-1 h-3 w-3" />
-                      Remind
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return hoursUntilExpiry < 24 && hoursUntilExpiry > 0;
   }
+
+  function openDetailModal(interview: Interview) {
+    setSelectedInterview(interview);
+    setShowDetailModal(true);
+  }
+
+  const groupedInterviews = groupInterviewsByJob();
+  const scheduledInterviews = getScheduledInterviews();
 
   return (
     <div className="space-y-6">
@@ -348,8 +300,8 @@ export default function InterviewTrackingPage() {
       </div>
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {[1, 2, 3, 4].map(i => (
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
             <Card key={i}>
               <CardContent className="p-6">
                 <Skeleton className="h-32 w-full" />
@@ -368,8 +320,341 @@ export default function InterviewTrackingPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {interviews.map(renderInterviewCard)}
+        <div className="space-y-6">
+          {/* Scheduled Interviews Section */}
+          {scheduledInterviews.length > 0 && showScheduled && (
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                      Scheduled Invitations
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {scheduledInterviews.length} invitation{scheduledInterviews.length !== 1 ? 's' : ''} scheduled to be sent
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowScheduled(false)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Candidate</TableHead>
+                      <TableHead>Job</TableHead>
+                      <TableHead>Scheduled Send Time</TableHead>
+                      <TableHead>Reminders Enabled</TableHead>
+                      <TableHead>Expiry</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {scheduledInterviews.map(interview => {
+                      const scheduledDate = interview.scheduledSendAt ? new Date(interview.scheduledSendAt) : null;
+                      const isPastScheduledTime = scheduledDate && scheduledDate < new Date();
+                      const hoursUntilSend = scheduledDate
+                        ? (scheduledDate.getTime() - Date.now()) / (1000 * 60 * 60)
+                        : 0;
+
+                      return (
+                        <TableRow key={interview.id} className="hover:bg-blue-100/50">
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{getCandidateName(interview)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {getCandidateEmail(interview)}
+                              </p>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <p className="text-sm">{getJobTitle(interview)}</p>
+                          </TableCell>
+
+                          <TableCell>
+                            {scheduledDate ? (
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {format(scheduledDate, 'MMM d, yyyy h:mm a')}
+                                </p>
+                                {isPastScheduledTime ? (
+                                  <Badge variant="outline" className="mt-1 bg-orange-100 text-orange-800 text-xs">
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    Should have sent
+                                  </Badge>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    in {Math.round(hoursUntilSend)}h
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not set</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {interview.enable24hReminder && (
+                                <Badge variant="outline" className="text-xs">
+                                  24h
+                                </Badge>
+                              )}
+                              {interview.enable6hReminder && (
+                                <Badge variant="outline" className="text-xs">
+                                  6h
+                                </Badge>
+                              )}
+                              {!interview.enable24hReminder && !interview.enable6hReminder && (
+                                <span className="text-xs text-muted-foreground">None</span>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(interview.linkExpiresAt), 'MMM d, h:mm a')}
+                            </span>
+                          </TableCell>
+
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDetailModal(interview)}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => resendInvitation(interview.id)}
+                                disabled={resending === interview.id}
+                                title="Send now"
+                              >
+                                {resending === interview.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Active Interviews Section */}
+          {groupedInterviews.map(group => (
+            <Collapsible
+              key={group.jobId}
+              open={expandedJobs.has(group.jobId)}
+              onOpenChange={() => toggleJobExpansion(group.jobId)}
+            >
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {expandedJobs.has(group.jobId) ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Briefcase className="h-5 w-5" />
+                            {group.jobTitle}
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {group.interviews.length} interview{group.interviews.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {Object.entries(group.statusCounts).map(([status, count]) => {
+                          const statusInfo = getStatusInfo(status);
+                          return (
+                            <Badge key={status} className={statusInfo.color}>
+                              {count} {statusInfo.label}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Candidate</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Timeline</TableHead>
+                          <TableHead className="text-center">Reminders</TableHead>
+                          <TableHead>Expiry</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.interviews.map(interview => {
+                          const statusInfo = getStatusInfo(interview.status);
+                          const StatusIcon = statusInfo.icon;
+                          const isExpired = new Date(interview.linkExpiresAt) < new Date();
+                          const hoursUntilExpiry = (new Date(interview.linkExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60);
+                          const expiringSoon = isExpiringSoon(interview);
+
+                          return (
+                            <TableRow key={interview.id} className="hover:bg-gray-50">
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{getCandidateName(interview)}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {getCandidateEmail(interview)}
+                                  </p>
+                                </div>
+                              </TableCell>
+
+                              <TableCell>
+                                <Badge className={statusInfo.color}>
+                                  <StatusIcon className="mr-1 h-3 w-3" />
+                                  {statusInfo.label}
+                                </Badge>
+                              </TableCell>
+
+                              <TableCell>
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                  {interview.linkSentAt && (
+                                    <div className="flex items-center gap-1">
+                                      <Mail className="h-3 w-3" />
+                                      <span>
+                                        Sent {formatDistanceToNow(new Date(interview.linkSentAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {interview.lastReminderAt && interview.remindersSent > 0 && (
+                                    <div className="flex items-center gap-1 text-blue-600">
+                                      <Send className="h-3 w-3" />
+                                      <span>
+                                        Reminder sent {formatDistanceToNow(new Date(interview.lastReminderAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {interview.linkOpenedAt && (
+                                    <div className="flex items-center gap-1">
+                                      <Eye className="h-3 w-3" />
+                                      <span>
+                                        Opened {formatDistanceToNow(new Date(interview.linkOpenedAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {interview.startedAt && (
+                                    <div className="flex items-center gap-1">
+                                      <Video className="h-3 w-3" />
+                                      <span>
+                                        Started {formatDistanceToNow(new Date(interview.startedAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {interview.completedAt && (
+                                    <div className="flex items-center gap-1">
+                                      <CheckCircle className="h-3 w-3" />
+                                      <span>
+                                        Completed {formatDistanceToNow(new Date(interview.completedAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              <TableCell className="text-center">
+                                <Badge variant="outline">
+                                  {interview.remindersSent}
+                                </Badge>
+                              </TableCell>
+
+                              <TableCell>
+                                {!isExpired && expiringSoon && ['LINK_SENT', 'LINK_OPENED'].includes(interview.status) ? (
+                                  <div className="flex items-center gap-1 text-orange-600 text-xs">
+                                    <AlertCircle className="h-3 w-3" />
+                                    <span>{Math.round(hoursUntilExpiry)}h left</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(interview.linkExpiresAt), 'MMM d, h:mm a')}
+                                  </span>
+                                )}
+                              </TableCell>
+
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openDetailModal(interview)}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+
+                                  {canResend(interview) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => resendInvitation(interview.id)}
+                                      disabled={resending === interview.id}
+                                    >
+                                      {resending === interview.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  )}
+
+                                  {canRemind(interview) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => sendReminder(interview.id, hoursUntilExpiry < 12 ? 'urgent' : 'gentle')}
+                                      disabled={reminding === interview.id || interview.remindersSent >= 2}
+                                    >
+                                      {reminding === interview.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Send className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          ))}
         </div>
       )}
 
@@ -403,9 +688,42 @@ export default function InterviewTrackingPage() {
                   <p className="text-sm">{getCandidateEmail(selectedInterview)}</p>
                 </div>
 
+                {selectedInterview.scheduledSendAt && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Scheduled Send</p>
+                    <p className="text-sm">
+                      {format(new Date(selectedInterview.scheduledSendAt), 'PPp')}
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Reminders Sent</p>
                   <p className="text-sm">{selectedInterview.remindersSent}</p>
+                </div>
+
+                {selectedInterview.lastReminderAt && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Last Reminder</p>
+                    <p className="text-sm">
+                      {format(new Date(selectedInterview.lastReminderAt), 'PPp')}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Reminders Enabled</p>
+                  <div className="flex gap-1 mt-1">
+                    {selectedInterview.enable24hReminder && (
+                      <Badge variant="outline" className="text-xs">24h</Badge>
+                    )}
+                    {selectedInterview.enable6hReminder && (
+                      <Badge variant="outline" className="text-xs">6h</Badge>
+                    )}
+                    {!selectedInterview.enable24hReminder && !selectedInterview.enable6hReminder && (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -440,7 +758,7 @@ export default function InterviewTrackingPage() {
                       alert('Link copied to clipboard!');
                     }}
                   >
-                    Copy
+                    <Copy className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

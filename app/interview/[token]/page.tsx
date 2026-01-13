@@ -4,13 +4,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Vapi from '@vapi-ai/web';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import {
   Mic,
   MicOff,
-  Phone,
   PhoneOff,
   Clock,
   AlertCircle,
@@ -18,9 +17,9 @@ import {
   Loader2,
   Briefcase,
   User,
-  Video
+  Volume2
 } from 'lucide-react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { format } from 'date-fns';
 
 interface InterviewData {
   id: string;
@@ -57,14 +56,26 @@ export default function PublicInterviewPage() {
   const [callStatus, setCallStatus] = useState<'idle' | 'connecting' | 'active' | 'ended'>('idle');
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
+
+  // Mic test state
+  const [micTested, setMicTested] = useState(false);
+  const [micTestLevel, setMicTestLevel] = useState(0);
+  const [isTesting, setIsTesting] = useState(false);
 
   const vapiRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const micTestRef = useRef<{ stream: MediaStream | null; audioContext: AudioContext | null }>({
+    stream: null,
+    audioContext: null
+  });
 
   useEffect(() => {
     validateToken();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      stopMicTest();
       if (vapiRef.current) {
         try {
           vapiRef.current.stop();
@@ -114,8 +125,9 @@ export default function PublicInterviewPage() {
       // Setup Vapi event listeners
       vapiRef.current.on('call-start', handleCallStart);
       vapiRef.current.on('call-end', handleCallEnd);
-      vapiRef.current.on('speech-start', () => console.log('Speech started'));
-      vapiRef.current.on('speech-end', () => console.log('Speech ended'));
+      vapiRef.current.on('speech-start', () => setIsSpeaking(true));
+      vapiRef.current.on('speech-end', () => setIsSpeaking(false));
+      vapiRef.current.on('volume-level', (level: number) => setAudioLevel(level));
       vapiRef.current.on('error', (error: any) => {
         console.error('Vapi error:', error);
         setError('An error occurred during the interview. Please try again.');
@@ -130,40 +142,78 @@ export default function PublicInterviewPage() {
     }
   }
 
-  async function handleCallStart() {
-    console.log('Call started');
-    setCallStatus('active');
+  // Microphone test functions
+  async function startMicTest() {
+    setIsTesting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micTestRef.current.stream = stream;
 
-    // Start duration timer
+      const audioContext = new AudioContext();
+      micTestRef.current.audioContext = audioContext;
+
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      microphone.connect(analyser);
+      analyser.fftSize = 256;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const detectSound = () => {
+        if (!micTestRef.current.audioContext) return;
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        setMicTestLevel(average);
+        requestAnimationFrame(detectSound);
+      };
+      detectSound();
+
+      // Auto-confirm after 3 seconds of good audio
+      setTimeout(() => {
+        setMicTested(true);
+        stopMicTest();
+      }, 3000);
+
+    } catch (err) {
+      console.error('Mic test error:', err);
+      setError('Unable to access microphone. Please check permissions.');
+      setIsTesting(false);
+    }
+  }
+
+  function stopMicTest() {
+    if (micTestRef.current.stream) {
+      micTestRef.current.stream.getTracks().forEach(track => track.stop());
+      micTestRef.current.stream = null;
+    }
+    if (micTestRef.current.audioContext) {
+      micTestRef.current.audioContext.close();
+      micTestRef.current.audioContext = null;
+    }
+    setIsTesting(false);
+  }
+
+  async function handleCallStart() {
+    setCallStatus('active');
     timerRef.current = setInterval(() => {
       setCallDuration(prev => prev + 1);
     }, 1000);
 
-    // Notify backend
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      await fetch(`${API_URL}/api/interview-link/${token}/start`, {
-        method: 'POST'
-      });
+      await fetch(`${API_URL}/api/interview-link/${token}/start`, { method: 'POST' });
     } catch (error) {
       console.error('Error notifying backend of call start:', error);
     }
   }
 
   async function handleCallEnd() {
-    console.log('Call ended');
     setCallStatus('ended');
+    if (timerRef.current) clearInterval(timerRef.current);
 
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    // Notify backend
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      await fetch(`${API_URL}/api/interview-link/${token}/complete`, {
-        method: 'POST'
-      });
+      await fetch(`${API_URL}/api/interview-link/${token}/complete`, { method: 'POST' });
     } catch (error) {
       console.error('Error notifying backend of call end:', error);
     }
@@ -171,7 +221,6 @@ export default function PublicInterviewPage() {
 
   async function startInterview() {
     if (!vapiRef.current || !interview) return;
-
     setCallStatus('connecting');
     setError(null);
 
@@ -186,22 +235,17 @@ export default function PublicInterviewPage() {
 
   async function endInterview() {
     if (!vapiRef.current) return;
-
     try {
       vapiRef.current.stop();
     } catch (err) {
       console.error('Error ending interview:', err);
     }
-
     setCallStatus('ended');
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    if (timerRef.current) clearInterval(timerRef.current);
   }
 
   function toggleMute() {
     if (!vapiRef.current) return;
-
     const newMutedState = !isMuted;
     vapiRef.current.setMuted(newMutedState);
     setIsMuted(newMutedState);
@@ -210,7 +254,7 @@ export default function PublicInterviewPage() {
   function formatDuration(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
 
   function getCandidateName(): string {
@@ -223,28 +267,30 @@ export default function PublicInterviewPage() {
     return interview.job?.title || interview.sourcingJob?.jobTitle || 'Position';
   }
 
+  // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-600" />
-            <p className="mt-4 text-muted-foreground">Loading interview...</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading your interview...</p>
+        </div>
       </div>
     );
   }
 
-  if (error) {
+  // Error state
+  if (error && !interview) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30 p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="p-8">
-            <div className="text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
-              <h2 className="mt-4 text-xl font-semibold">Unable to Load Interview</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+              <AlertCircle className="h-7 w-7 text-destructive" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Unable to Load Interview</h2>
+              <p className="text-sm text-muted-foreground mt-2">{error}</p>
             </div>
           </CardContent>
         </Card>
@@ -252,182 +298,263 @@ export default function PublicInterviewPage() {
     );
   }
 
-  if (!interview) {
-    return null;
-  }
+  if (!interview) return null;
 
   const isExpired = new Date(interview.linkExpiresAt) < new Date();
-  const hoursUntilExpiry = (new Date(interview.linkExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60);
+  const hoursUntilExpiry = Math.max(0, (new Date(interview.linkExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
-      <div className="max-w-4xl mx-auto py-8">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">AI Interview</h1>
-          <p className="mt-2 text-muted-foreground">
-            Please ensure you're in a quiet environment with a working microphone
+          <Badge variant="secondary" className="mb-4">
+            AI Interview
+          </Badge>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {getJobTitle()}
+          </h1>
+          <p className="text-muted-foreground mt-1 flex items-center justify-center gap-2">
+            <User className="h-4 w-4" />
+            {getCandidateName()}
           </p>
         </div>
 
         {/* Main Card */}
-        <Card className="shadow-lg">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-            <CardTitle className="text-2xl">
-              <div className="flex items-center gap-2">
-                <User className="h-6 w-6" />
-                {getCandidateName()}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+
+            {/* Status Bar */}
+            <div className="px-6 py-4 bg-muted/50 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="font-mono font-medium">{formatDuration(callDuration)}</span>
               </div>
-            </CardTitle>
-            <p className="text-blue-100 flex items-center gap-2 mt-2">
-              <Briefcase className="h-4 w-4" />
-              {getJobTitle()}
-            </p>
-          </CardHeader>
-
-          <CardContent className="p-8 space-y-6">
-            {/* Status Banner */}
-            {callStatus === 'idle' && !isExpired && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Ready to start your interview. Click the button below when you're ready.
-                  {hoursUntilExpiry < 24 && (
-                    <span className="block mt-1 text-orange-600 font-medium">
-                      This link expires in {Math.round(hoursUntilExpiry)} hours.
-                    </span>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {callStatus === 'connecting' && (
-              <Alert>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <AlertDescription>
-                  Connecting to AI interviewer... Please allow microphone access if prompted.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {callStatus === 'active' && (
-              <Alert className="bg-green-50 border-green-200">
-                <Video className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">
-                  Interview in progress. Speak clearly and take your time.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {callStatus === 'ended' && (
-              <Alert className="bg-blue-50 border-blue-200">
-                <CheckCircle className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800">
-                  Interview completed! Thank you for your time. You may now close this page.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Interview Controls */}
-            {callStatus === 'idle' && !isExpired && (
-              <div className="text-center py-8">
-                <Button
-                  size="lg"
-                  onClick={startInterview}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-12 py-6 text-lg"
-                >
-                  <Phone className="mr-2 h-6 w-6" />
-                  Start Interview
-                </Button>
-              </div>
-            )}
-
-            {callStatus === 'active' && (
-              <div className="space-y-6">
-                {/* Duration Display */}
-                <div className="text-center py-4">
-                  <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-6 py-3">
-                    <Clock className="h-5 w-5 text-blue-600" />
-                    <span className="text-2xl font-mono font-bold">
-                      {formatDuration(callDuration)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Control Buttons */}
-                <div className="flex justify-center gap-4">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={toggleMute}
-                    className={isMuted ? 'border-red-500 text-red-500' : ''}
-                  >
-                    {isMuted ? (
-                      <>
-                        <MicOff className="mr-2 h-5 w-5" />
-                        Unmute
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="mr-2 h-5 w-5" />
-                        Mute
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    size="lg"
-                    variant="destructive"
-                    onClick={endInterview}
-                  >
-                    <PhoneOff className="mr-2 h-5 w-5" />
-                    End Interview
-                  </Button>
-                </div>
-
-                {/* Tips */}
-                <Alert>
-                  <AlertDescription className="text-sm">
-                    <strong>Tips:</strong> Speak clearly, pause between answers, and feel free to ask the AI to repeat questions.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
-
-            {/* Interview Info */}
-            <div className="border-t pt-6 mt-6">
-              <div className="grid gap-4 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status:</span>
-                  <Badge variant={callStatus === 'active' ? 'default' : 'secondary'}>
-                    {callStatus === 'idle' ? 'Not Started' : callStatus === 'active' ? 'In Progress' : 'Completed'}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Link Expires:</span>
-                  <span className="font-medium">
-                    {format(new Date(interview.linkExpiresAt), 'PPp')}
-                  </span>
-                </div>
-
-                {callStatus === 'ended' && interview.duration && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Duration:</span>
-                    <span className="font-medium">
-                      {Math.round(interview.duration / 60)} minutes
-                    </span>
-                  </div>
-                )}
-              </div>
+              <Badge variant={
+                callStatus === 'active' ? 'default' :
+                callStatus === 'ended' ? 'secondary' : 'outline'
+              }>
+                {callStatus === 'idle' && 'Ready'}
+                {callStatus === 'connecting' && 'Connecting...'}
+                {callStatus === 'active' && 'Live'}
+                {callStatus === 'ended' && 'Completed'}
+              </Badge>
             </div>
+
+            {/* Content Area */}
+            <div className="p-6 space-y-6">
+
+              {/* IDLE STATE */}
+              {callStatus === 'idle' && !isExpired && (
+                <>
+                  {/* Mic Test Section */}
+                  {!micTested ? (
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                          <Mic className="h-8 w-8 text-primary" />
+                        </div>
+                        <h3 className="font-medium">Test Your Microphone</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Let's make sure your audio is working properly
+                        </p>
+                      </div>
+
+                      {isTesting ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Volume2 className="h-4 w-4 text-muted-foreground" />
+                            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary transition-all duration-100 rounded-full"
+                                style={{ width: `${Math.min(micTestLevel * 2, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground w-12 text-right">
+                              {micTestLevel > 15 ? 'Good!' : 'Speak...'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-center text-muted-foreground">
+                            Speak a few words to test your microphone
+                          </p>
+                        </div>
+                      ) : (
+                        <Button onClick={startMicTest} className="w-full">
+                          <Mic className="h-4 w-4 mr-2" />
+                          Start Microphone Test
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
+                          <CheckCircle className="h-8 w-8 text-green-600" />
+                        </div>
+                        <h3 className="font-medium">Ready to Begin</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Your microphone is working. Start when you're ready.
+                        </p>
+                      </div>
+
+                      <Button onClick={startInterview} size="lg" className="w-full">
+                        Start Interview
+                      </Button>
+
+                      {hoursUntilExpiry < 24 && (
+                        <p className="text-xs text-center text-orange-600">
+                          This link expires in {Math.round(hoursUntilExpiry)} hours
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* CONNECTING STATE */}
+              {callStatus === 'connecting' && (
+                <div className="text-center py-8">
+                  <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+                  <p className="text-muted-foreground mt-4">Connecting to interviewer...</p>
+                </div>
+              )}
+
+              {/* ACTIVE STATE */}
+              {callStatus === 'active' && (
+                <div className="space-y-6">
+                  {/* Audio Visualization */}
+                  <div className="flex items-center justify-center gap-1 h-16">
+                    {Array.from({ length: 24 }).map((_, i) => {
+                      const centerDistance = Math.abs(i - 12) / 12;
+                      const baseHeight = 20 + (1 - centerDistance) * 30;
+                      const dynamicHeight = isSpeaking
+                        ? baseHeight + Math.random() * audioLevel * 50
+                        : baseHeight * 0.3;
+                      return (
+                        <div
+                          key={i}
+                          className={`w-1 rounded-full transition-all duration-75 ${
+                            isSpeaking ? 'bg-primary' : 'bg-muted-foreground/30'
+                          }`}
+                          style={{ height: `${Math.min(dynamicHeight, 64)}px` }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Status Text */}
+                  <p className="text-center text-sm text-muted-foreground">
+                    {isSpeaking ? 'Listening to you...' : 'AI is speaking...'}
+                  </p>
+
+                  {/* Control Buttons */}
+                  <div className="flex justify-center gap-3">
+                    <Button
+                      variant={isMuted ? 'destructive' : 'outline'}
+                      size="lg"
+                      onClick={toggleMute}
+                      className="w-32"
+                    >
+                      {isMuted ? (
+                        <>
+                          <MicOff className="h-4 w-4 mr-2" />
+                          Unmute
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-4 w-4 mr-2" />
+                          Mute
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={endInterview}
+                      className="w-32 hover:bg-destructive hover:text-destructive-foreground hover:border-destructive"
+                    >
+                      <PhoneOff className="h-4 w-4 mr-2" />
+                      End
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* ENDED STATE */}
+              {callStatus === 'ended' && (
+                <div className="text-center py-4 space-y-6">
+                  <div>
+                    <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h3 className="text-lg font-medium">Interview Completed</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Thank you for your time!
+                    </p>
+                  </div>
+
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 gap-4 max-w-xs mx-auto">
+                    <div className="bg-muted/50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold font-mono">{formatDuration(callDuration)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Duration</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-4 text-center">
+                      <div className="flex items-center justify-center">
+                        <CheckCircle className="h-6 w-6 text-green-600" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Completed</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground">
+                    <p>Your interview has been recorded and will be reviewed by the hiring team. You'll hear back within 2-3 business days.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* EXPIRED STATE */}
+              {isExpired && callStatus === 'idle' && (
+                <div className="text-center py-8">
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                    <Clock className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-medium">Link Expired</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    This interview link has expired. Please contact the recruiter for a new link.
+                  </p>
+                </div>
+              )}
+
+            </div>
+
+            {/* Footer Info */}
+            {callStatus === 'idle' && !isExpired && micTested && (
+              <div className="px-6 py-4 bg-muted/30 border-t">
+                <div className="flex items-start gap-3">
+                  <Briefcase className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Tips for a great interview:</p>
+                    <ul className="mt-1 space-y-0.5">
+                      <li>• Find a quiet place with good lighting</li>
+                      <li>• Speak clearly and at a natural pace</li>
+                      <li>• Take your time to think before answering</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </CardContent>
         </Card>
 
         {/* Footer */}
-        <div className="mt-8 text-center text-sm text-muted-foreground">
-          <p>This interview is powered by AI. Your responses will be analyzed to match your qualifications with the role.</p>
-        </div>
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Powered by AI • Your responses are confidential
+        </p>
+
       </div>
     </div>
   );

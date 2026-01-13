@@ -42,6 +42,12 @@ interface EmailTemplate {
   bodyHtml: string;
 }
 
+interface ReminderTemplate {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export default function ScheduleInterviewsPage() {
   const api = useApiClient();
   const [activeTab, setActiveTab] = useState<'screening' | 'sourcing'>('screening');
@@ -50,6 +56,8 @@ export default function ScheduleInterviewsPage() {
   const [screeningCandidates, setScreeningCandidates] = useState<Candidate[]>([]);
   const [sourcingCandidates, setSourcingCandidates] = useState<Candidate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [reminder24hTemplates, setReminder24hTemplates] = useState<ReminderTemplate[]>([]);
+  const [reminder6hTemplates, setReminder6hTemplates] = useState<ReminderTemplate[]>([]);
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -58,6 +66,9 @@ export default function ScheduleInterviewsPage() {
   // Selection states
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
 
+  // Job filtering for sourcing candidates
+  const [selectedSourcingJobId, setSelectedSourcingJobId] = useState<string>('all');
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -65,6 +76,16 @@ export default function ScheduleInterviewsPage() {
   const [customMessage, setCustomMessage] = useState('');
   const [expiryHours, setExpiryHours] = useState('48');
   const [sendImmediately, setSendImmediately] = useState(true);
+
+  // Scheduling states
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+
+  // Reminder states
+  const [enable24hReminder, setEnable24hReminder] = useState(true);
+  const [enable6hReminder, setEnable6hReminder] = useState(true);
+  const [reminder24hTemplateId, setReminder24hTemplateId] = useState<string>('');
+  const [reminder6hTemplateId, setReminder6hTemplateId] = useState<string>('');
 
   // Fetch candidates and templates
   useEffect(() => {
@@ -94,11 +115,60 @@ export default function ScheduleInterviewsPage() {
           setSelectedTemplateId(templatesRes.data[0].id);
         }
       }
+
+      // Fetch 24h reminder templates
+      const reminder24hRes = await api.get('/api/email-templates?type=REMINDER_24H');
+      if (reminder24hRes.ok) {
+        setReminder24hTemplates(reminder24hRes.data || []);
+        if (reminder24hRes.data?.length > 0) {
+          setReminder24hTemplateId(reminder24hRes.data[0].id);
+        }
+      }
+
+      // Fetch 6h reminder templates
+      const reminder6hRes = await api.get('/api/email-templates?type=REMINDER_6H');
+      if (reminder6hRes.ok) {
+        setReminder6hTemplates(reminder6hRes.data || []);
+        if (reminder6hRes.data?.length > 0) {
+          setReminder6hTemplateId(reminder6hRes.data[0].id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  }
+
+  // Get unique sourcing jobs
+  function getUniqueSourcingJobs() {
+    const jobMap = new Map<string, { id: string; title: string; count: number }>();
+
+    sourcingCandidates.forEach(candidate => {
+      if (candidate.sourcingJob) {
+        const jobId = candidate.sourcingJob.id;
+        if (jobMap.has(jobId)) {
+          const job = jobMap.get(jobId)!;
+          job.count += 1;
+        } else {
+          jobMap.set(jobId, {
+            id: jobId,
+            title: candidate.sourcingJob.jobTitle,
+            count: 1,
+          });
+        }
+      }
+    });
+
+    return Array.from(jobMap.values());
+  }
+
+  // Filter sourcing candidates by selected job
+  function getFilteredSourcingCandidates() {
+    if (selectedSourcingJobId === 'all') {
+      return sourcingCandidates;
+    }
+    return sourcingCandidates.filter(c => c.sourcingJobId === selectedSourcingJobId);
   }
 
   function toggleCandidate(candidateId: string) {
@@ -155,7 +225,7 @@ export default function ScheduleInterviewsPage() {
         const payload: any = {
           source: candidate.jobId ? 'SCREENING' : 'SOURCING',
           expiryHours: parseInt(expiryHours),
-          sendEmail: sendImmediately,
+          sendEmailNow: sendImmediately,
         };
 
         if (candidate.jobId) {
@@ -166,9 +236,25 @@ export default function ScheduleInterviewsPage() {
           payload.sourcingJobId = candidate.sourcingJobId;
         }
 
-        if (customSubject) payload.customSubject = customSubject;
-        if (customMessage) payload.customMessage = customMessage;
-        if (selectedTemplateId) payload.templateId = selectedTemplateId;
+        if (customSubject) payload.customEmailSubject = customSubject;
+        if (customMessage) payload.customEmailBody = customMessage;
+        if (selectedTemplateId) payload.emailTemplateId = selectedTemplateId;
+
+        // Add scheduling if not sending immediately
+        if (!sendImmediately && scheduledDate && scheduledTime) {
+          const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+          payload.scheduledSendAt = scheduledDateTime.toISOString();
+        }
+
+        // Add reminder settings
+        payload.enable24hReminder = enable24hReminder;
+        payload.enable6hReminder = enable6hReminder;
+        if (enable24hReminder && reminder24hTemplateId) {
+          payload.reminder24hTemplateId = reminder24hTemplateId;
+        }
+        if (enable6hReminder && reminder6hTemplateId) {
+          payload.reminder6hTemplateId = reminder6hTemplateId;
+        }
 
         return api.post('/api/interviews', payload);
       });
@@ -183,6 +269,11 @@ export default function ScheduleInterviewsPage() {
       setShowModal(false);
       setCustomSubject('');
       setCustomMessage('');
+      setScheduledDate('');
+      setScheduledTime('');
+      setSendImmediately(true);
+      setEnable24hReminder(true);
+      setEnable6hReminder(true);
 
     } catch (error) {
       console.error('Error scheduling interviews:', error);
@@ -333,13 +424,43 @@ export default function ScheduleInterviewsPage() {
         </TabsContent>
 
         <TabsContent value="sourcing" className="mt-6">
-          {renderCandidateList(sourcingCandidates, 'sourcing')}
+          {/* Job Filter Dropdown */}
+          {sourcingCandidates.length > 0 && (
+            <div className="mb-6">
+              <Label htmlFor="jobFilter" className="mb-2 block">
+                Filter by Job
+              </Label>
+              <Select
+                value={selectedSourcingJobId}
+                onValueChange={(value) => {
+                  setSelectedSourcingJobId(value);
+                  setSelectedCandidates(new Set()); // Clear selection when switching jobs
+                }}
+              >
+                <SelectTrigger id="jobFilter" className="w-full max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Jobs ({sourcingCandidates.length} candidates)
+                  </SelectItem>
+                  {getUniqueSourcingJobs().map(job => (
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.title} ({job.count} candidates)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {renderCandidateList(getFilteredSourcingCandidates(), 'sourcing')}
         </TabsContent>
       </Tabs>
 
       {/* Schedule Interview Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="min-w-5xl min-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Schedule Interviews</DialogTitle>
             <DialogDescription>
@@ -347,70 +468,222 @@ export default function ScheduleInterviewsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* Email Template */}
-            <div className="space-y-2">
-              <Label>Email Template</Label>
-              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select template" />
-                </SelectTrigger>
-                <SelectContent>
-                  {emailTemplates.map(template => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid md:grid-cols-2 gap-6 py-4">
+              {/* Left Column */}
+              <div className="space-y-4">
+                {/* Email Template */}
+                <div className="space-y-2">
+                  <Label>Email Template</Label>
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emailTemplates.map(template => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Custom Subject */}
-            <div className="space-y-2">
-              <Label>Email Subject (optional override)</Label>
-              <Input
-                value={customSubject}
-                onChange={(e) => setCustomSubject(e.target.value)}
-                placeholder="Leave empty to use template subject"
-              />
-            </div>
+                {/* Custom Subject */}
+                <div className="space-y-2">
+                  <Label>Email Subject (optional override)</Label>
+                  <Input
+                    value={customSubject}
+                    onChange={(e) => setCustomSubject(e.target.value)}
+                    placeholder="Leave empty to use template subject"
+                  />
+                </div>
 
-            {/* Custom Message */}
-            <div className="space-y-2">
-              <Label>Additional Message (optional)</Label>
-              <Textarea
-                value={customMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                placeholder="Add any custom message to include in the email"
-                rows={3}
-              />
-            </div>
+                {/* Custom Message */}
+                <div className="space-y-2">
+                  <Label>Additional Message (optional)</Label>
+                  <Textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="Add any custom message to include in the email"
+                    rows={3}
+                  />
+                </div>
 
-            {/* Expiry Hours */}
-            <div className="space-y-2">
-              <Label>Link Expiry (hours)</Label>
-              <Input
-                type="number"
-                value={expiryHours}
-                onChange={(e) => setExpiryHours(e.target.value)}
-                min="1"
-                max="168"
-              />
-              <p className="text-xs text-muted-foreground">
-                Interview links will expire after this duration
-              </p>
-            </div>
+                {/* Expiry Hours */}
+                <div className="space-y-2">
+                  <Label>Link Expiry (hours)</Label>
+                  <Input
+                    type="number"
+                    value={expiryHours}
+                    onChange={(e) => setExpiryHours(e.target.value)}
+                    min="1"
+                    max="168"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Interview links will expire after this duration
+                  </p>
+                </div>
+              </div>
 
-            {/* Send Immediately */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="sendImmediately"
-                checked={sendImmediately}
-                onCheckedChange={(checked) => setSendImmediately(checked as boolean)}
-              />
-              <Label htmlFor="sendImmediately" className="cursor-pointer">
-                Send invitation emails immediately
-              </Label>
+              {/* Right Column */}
+              <div className="space-y-4">
+
+                {/* Send Immediately */}
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="sendImmediately"
+                      checked={sendImmediately}
+                      onCheckedChange={(checked) => setSendImmediately(checked as boolean)}
+                    />
+                    <Label htmlFor="sendImmediately" className="cursor-pointer">
+                      Send invitation emails immediately
+                    </Label>
+                  </div>
+
+                  {/* Schedule Send */}
+                  {!sendImmediately && (
+                    <div className="pl-6 space-y-3 border-l-2 border-gray-200">
+                      <Label className="text-sm font-semibold">Schedule Send</Label>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="scheduledDate" className="text-xs">Date</Label>
+                          <Input
+                            id="scheduledDate"
+                            type="date"
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            required={!sendImmediately}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="scheduledTime" className="text-xs">Time</Label>
+                          <Input
+                            id="scheduledTime"
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            required={!sendImmediately}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const oneHourLater = new Date(Date.now() + 60 * 60 * 1000);
+                            setScheduledDate(oneHourLater.toISOString().split('T')[0]);
+                            setScheduledTime(oneHourLater.toTimeString().slice(0, 5));
+                          }}
+                        >
+                          In 1 Hour
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const fourHoursLater = new Date(Date.now() + 4 * 60 * 60 * 1000);
+                            setScheduledDate(fourHoursLater.toISOString().split('T')[0]);
+                            setScheduledTime(fourHoursLater.toTimeString().slice(0, 5));
+                          }}
+                        >
+                          In 4 Hours
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const tomorrow = new Date();
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+                            tomorrow.setHours(9, 0, 0, 0);
+                            setScheduledDate(tomorrow.toISOString().split('T')[0]);
+                            setScheduledTime('09:00');
+                          }}
+                        >
+                          Tomorrow 9AM
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-semibold mb-3 block">Automated Reminders</Label>
+
+                  {/* 24h Reminder */}
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enable24hReminder"
+                        checked={enable24hReminder}
+                        onCheckedChange={(checked) => setEnable24hReminder(checked as boolean)}
+                      />
+                      <Label htmlFor="enable24hReminder" className="cursor-pointer">
+                        Send 24-hour gentle reminder
+                      </Label>
+                    </div>
+
+                    {enable24hReminder && (
+                      <div className="pl-6 space-y-2">
+                        <Label htmlFor="reminder24hTemplate" className="text-xs">Template</Label>
+                        <Select value={reminder24hTemplateId} onValueChange={setReminder24hTemplateId}>
+                          <SelectTrigger id="reminder24hTemplate">
+                            <SelectValue placeholder="Select reminder template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {reminder24hTemplates.map(template => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 6h Reminder */}
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="enable6hReminder"
+                        checked={enable6hReminder}
+                        onCheckedChange={(checked) => setEnable6hReminder(checked as boolean)}
+                      />
+                      <Label htmlFor="enable6hReminder" className="cursor-pointer">
+                        Send 6-hour urgent reminder
+                      </Label>
+                    </div>
+
+                    {enable6hReminder && (
+                      <div className="pl-6 space-y-2">
+                        <Label htmlFor="reminder6hTemplate" className="text-xs">Template</Label>
+                        <Select value={reminder6hTemplateId} onValueChange={setReminder6hTemplateId}>
+                          <SelectTrigger id="reminder6hTemplate">
+                            <SelectValue placeholder="Select reminder template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {reminder6hTemplates.map(template => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

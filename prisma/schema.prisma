@@ -8,15 +8,17 @@ datasource db {
 }
 
 model User {
-  id            String         @id
-  email         String         @unique
-  name          String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sourcingJobs  SourcingJob[]
-  jobs          Job[]
-  subscriptions subscriptions?
-  user_credits  user_credits?
+  id              String            @id
+  email           String            @unique
+  name            String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  sourcingJobs    SourcingJob[]
+  email_templates email_templates[]
+  interviews      interviews[]
+  jobs            Job[]
+  subscriptions   subscriptions?
+  user_credits    user_credits?
 
   @@map("users")
 }
@@ -35,6 +37,7 @@ model Job {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   candidates         Candidate[]
+  interviews         interviews[]
   user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   processingLogs     ProcessingLog[]
 
@@ -43,7 +46,7 @@ model Job {
 }
 
 model Candidate {
-  id                   String   @id @default(uuid())
+  id                   String       @id @default(uuid())
   jobId                String
   name                 String
   email                String?
@@ -61,12 +64,13 @@ model Candidate {
   summary              String?
   strengths            String[]
   weaknesses           String[]
-  processingStatus     String   @default("pending")
+  processingStatus     String       @default("pending")
   processingError      String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
   resumePath           String
-  job                  Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job                  Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  interviews           interviews[]
 
   @@index([jobId])
   @@index([matchScore])
@@ -123,6 +127,7 @@ model SourcingJob {
   usedQueryIndices    Json?
   candidates          LinkedInCandidate[]
   user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interviews          interviews[]
 
   @@index([userId, status])
   @@index([lastActivityAt])
@@ -210,6 +215,7 @@ model LinkedInCandidate {
   enrichmentStatus          CandidateEnrichmentStatus @default(PENDING)
   scrapingStatus            String?
   sourcingJob               SourcingJob               @relation(fields: [sourcingJobId], references: [id], onDelete: Cascade)
+  interviews                interviews[]
 
   @@unique([sourcingJobId, profileUrl])
   @@index([sourcingJobId, matchScore(sort: Desc)])
@@ -279,6 +285,92 @@ model user_credits {
   users               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model email_templates {
+  id                                                           String            @id
+  userId                                                       String
+  name                                                         String
+  type                                                         EmailTemplateType
+  subject                                                      String
+  bodyHtml                                                     String
+  bodyText                                                     String?
+  variables                                                    Json              @default("{}")
+  isDefault                                                    Boolean           @default(false)
+  isActive                                                     Boolean           @default(true)
+  createdAt                                                    DateTime          @default(now())
+  updatedAt                                                    DateTime
+  users                                                        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interviews_interviews_emailTemplateIdToemail_templates       interviews[]      @relation("interviews_emailTemplateIdToemail_templates")
+  interviews_interviews_reminder24hTemplateIdToemail_templates interviews[]      @relation("interviews_reminder24hTemplateIdToemail_templates")
+  interviews_interviews_reminder6hTemplateIdToemail_templates  interviews[]      @relation("interviews_reminder6hTemplateIdToemail_templates")
+
+  @@index([userId, type, isDefault])
+}
+
+model interviews {
+  id                                                                String                @id
+  userId                                                            String
+  candidateId                                                       String?
+  linkedInCandidateId                                               String?
+  jobId                                                             String?
+  source                                                            InterviewSource
+  linkToken                                                         String                @unique
+  interviewLink                                                     String
+  vapiAssistantId                                                   String?
+  vapiCallId                                                        String?
+  emailTemplateId                                                   String?
+  customEmailSubject                                                String?
+  customEmailBody                                                   String?
+  status                                                            InterviewStatus       @default(PENDING)
+  linkSentAt                                                        DateTime?
+  linkOpenedAt                                                      DateTime?
+  linkExpiresAt                                                     DateTime
+  startedAt                                                         DateTime?
+  completedAt                                                       DateTime?
+  abandonedAt                                                       DateTime?
+  duration                                                          Int?
+  emailSent                                                         Boolean               @default(false)
+  remindersSent                                                     Int                   @default(0)
+  lastReminderAt                                                    DateTime?
+  transcript                                                        String?
+  rawMessages                                                       Json?
+  recordingUrl                                                      String?
+  overallScore                                                      Int?
+  technicalScore                                                    Int?
+  communicationScore                                                Int?
+  cultureFitScore                                                   Int?
+  strengths                                                         String[]
+  concerns                                                          String[]
+  keyInsights                                                       String?
+  recommendation                                                    HiringRecommendation?
+  detailedAnalysis                                                  Json?
+  abandonedAtQuestion                                               String?
+  noShowReason                                                      String?
+  createdAt                                                         DateTime              @default(now())
+  updatedAt                                                         DateTime
+  sourcingJobId                                                     String?
+  enable24hReminder                                                 Boolean               @default(true)
+  enable6hReminder                                                  Boolean               @default(true)
+  reminder24hTemplateId                                             String?
+  reminder6hTemplateId                                              String?
+  scheduledSendAt                                                   DateTime?
+  candidates                                                        Candidate?            @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  email_templates_interviews_emailTemplateIdToemail_templates       email_templates?      @relation("interviews_emailTemplateIdToemail_templates", fields: [emailTemplateId], references: [id])
+  jobs                                                              Job?                  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  LinkedInCandidate                                                 LinkedInCandidate?    @relation(fields: [linkedInCandidateId], references: [id], onDelete: Cascade)
+  email_templates_interviews_reminder24hTemplateIdToemail_templates email_templates?      @relation("interviews_reminder24hTemplateIdToemail_templates", fields: [reminder24hTemplateId], references: [id])
+  email_templates_interviews_reminder6hTemplateIdToemail_templates  email_templates?      @relation("interviews_reminder6hTemplateIdToemail_templates", fields: [reminder6hTemplateId], references: [id])
+  SourcingJob                                                       SourcingJob?          @relation(fields: [sourcingJobId], references: [id], onDelete: Cascade)
+  users                                                             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([jobId])
+  @@index([linkToken])
+  @@index([linkedInCandidateId])
+  @@index([sourcingJobId])
+  @@index([userId, status])
+  @@index([vapiCallId])
+}
+
 enum SourcingJobStatus {
   CREATED
   FORMATTING_JD
@@ -325,4 +417,36 @@ enum TransactionType {
   DEBIT
   RESET
   REFUND
+}
+
+enum EmailTemplateType {
+  INTERVIEW_INVITATION
+  REMINDER_24H
+  REMINDER_6H
+  FOLLOW_UP
+  CUSTOM
+}
+
+enum HiringRecommendation {
+  STRONG_YES
+  YES
+  MAYBE
+  NO
+}
+
+enum InterviewSource {
+  SCREENING
+  SOURCING
+}
+
+enum InterviewStatus {
+  PENDING
+  LINK_SENT
+  LINK_OPENED
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+  EXPIRED
+  NO_SHOW
+  CANCELLED
 }
