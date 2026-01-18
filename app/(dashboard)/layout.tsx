@@ -1,6 +1,6 @@
 import { UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { LayoutDashboard, Settings, Upload, Search, Video, Mail, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, Settings, Upload, Search, Video, Mail, CheckCircle, Inbox, ListChecks } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -59,6 +59,34 @@ export default function DashboardLayout({
                 <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                   NEW
                 </span>
+              </Link>
+            </div>
+
+            {/* Outreach Section */}
+            <div className="pt-4">
+              <p className="text-xs font-semibold text-gray-500 px-4 mb-2">
+                OUTREACH
+              </p>
+              <Link
+                href="/outreach/sequences"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <ListChecks size={20} />
+                <span>Sequences</span>
+              </Link>
+              <Link
+                href="/outreach/pipeline"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <CheckCircle size={20} />
+                <span>Pipeline</span>
+              </Link>
+              <Link
+                href="/outreach/inbox"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Inbox size={20} />
+                <span>Inbox</span>
               </Link>
             </div>
 

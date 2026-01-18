@@ -31,7 +31,7 @@ export function useApiClient() {
     return { res, data, ok: res.ok, status: res.status };
   }
 
-  async function put(endpoint: string, body: any) {
+  async function put(endpoint: string, body?: any) {
     const token = await getToken();
     const res = await fetch(`${API_URL}${endpoint}`, {
       method: 'PUT',

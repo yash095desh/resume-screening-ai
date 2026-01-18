@@ -8,17 +8,34 @@ datasource db {
 }
 
 model User {
-  id              String            @id
-  email           String            @unique
-  name            String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  sourcingJobs    SourcingJob[]
-  email_templates email_templates[]
-  interviews      interviews[]
-  jobs            Job[]
-  subscriptions   subscriptions?
-  user_credits    user_credits?
+  id                      String            @id
+  email                   String            @unique
+  name                    String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  dailyEmailLimit         Int               @default(10)
+  emailDomainPaused       Boolean           @default(false)
+  emailDomainPausedAt     DateTime?
+  emailDomainPausedReason String?
+  emailDomainVerified     Boolean           @default(false)
+  emailDomainVerifiedAt   DateTime?
+  emailFromAddress        String?
+  emailSubdomain          String?           @unique
+  emailsSentToday         Int               @default(0)
+  lastEmailResetAt        DateTime?
+  resendDomainId          String?
+  totalEmailsBounced      Int               @default(0)
+  totalEmailsSent         Int               @default(0)
+  totalSpamComplaints     Int               @default(0)
+  warmupStartedAt         DateTime?
+  sourcingJobs            SourcingJob[]
+  email_templates         email_templates[]
+  emails                  Email[]
+  interviews              interviews[]
+  jobs                    Job[]
+  sequences               Sequence[]
+  subscriptions           subscriptions?
+  user_credits            user_credits?
 
   @@map("users")
 }
@@ -46,7 +63,7 @@ model Job {
 }
 
 model Candidate {
-  id                   String       @id @default(uuid())
+  id                   String              @id @default(uuid())
   jobId                String
   name                 String
   email                String?
@@ -64,12 +81,14 @@ model Candidate {
   summary              String?
   strengths            String[]
   weaknesses           String[]
-  processingStatus     String       @default("pending")
+  processingStatus     String              @default("pending")
   processingError      String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   resumePath           String
-  job                  Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidateSequences   CandidateSequence[]
+  job                  Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  emails               Email[]
   interviews           interviews[]
 
   @@index([jobId])
@@ -215,6 +234,8 @@ model LinkedInCandidate {
   enrichmentStatus          CandidateEnrichmentStatus @default(PENDING)
   scrapingStatus            String?
   sourcingJob               SourcingJob               @relation(fields: [sourcingJobId], references: [id], onDelete: Cascade)
+  candidateSequences        CandidateSequence[]
+  emails                    Email[]
   interviews                interviews[]
 
   @@unique([sourcingJobId, profileUrl])
@@ -299,9 +320,11 @@ model email_templates {
   createdAt                                                    DateTime          @default(now())
   updatedAt                                                    DateTime
   users                                                        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails                                                       Email[]
   interviews_interviews_emailTemplateIdToemail_templates       interviews[]      @relation("interviews_emailTemplateIdToemail_templates")
   interviews_interviews_reminder24hTemplateIdToemail_templates interviews[]      @relation("interviews_reminder24hTemplateIdToemail_templates")
   interviews_interviews_reminder6hTemplateIdToemail_templates  interviews[]      @relation("interviews_reminder6hTemplateIdToemail_templates")
+  sequenceSteps                                                SequenceStep[]
 
   @@index([userId, type, isDefault])
 }
@@ -369,6 +392,166 @@ model interviews {
   @@index([sourcingJobId])
   @@index([userId, status])
   @@index([vapiCallId])
+}
+
+model Sequence {
+  id                 String              @id @default(cuid())
+  userId             String
+  name               String
+  description        String?
+  isActive           Boolean             @default(true)
+  totalSteps         Int                 @default(0)
+  delayBetweenSteps  Int                 @default(3)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  candidateSequences CandidateSequence[]
+  emails             Email[]
+  steps              SequenceStep[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("sequences")
+}
+
+model SequenceStep {
+  id              String           @id @default(cuid())
+  sequenceId      String
+  stepNumber      Int
+  emailTemplateId String?
+  subject         String?
+  bodyHtml        String?
+  bodyText        String?
+  delayDays       Int              @default(0)
+  delayHours      Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  emails          Email[]
+  emailTemplate   email_templates? @relation(fields: [emailTemplateId], references: [id])
+  sequence        Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, stepNumber])
+  @@index([sequenceId])
+  @@map("sequence_steps")
+}
+
+model CandidateSequence {
+  id                   String                  @id @default(cuid())
+  sequenceId           String
+  candidateId          String?
+  linkedInCandidateId  String?
+  status               CandidateSequenceStatus @default(ACTIVE)
+  currentStep          Int                     @default(1)
+  startedAt            DateTime                @default(now())
+  completedAt          DateTime?
+  pausedAt             DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  nextEmailScheduledAt DateTime?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  candidate            Candidate?              @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  linkedInCandidate    LinkedInCandidate?      @relation(fields: [linkedInCandidateId], references: [id], onDelete: Cascade)
+  sequence             Sequence                @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  emails               Email[]
+
+  @@index([sequenceId, status])
+  @@index([candidateId])
+  @@index([linkedInCandidateId])
+  @@index([status, nextEmailScheduledAt])
+  @@map("candidate_sequences")
+}
+
+model Email {
+  id                  String             @id @default(cuid())
+  userId              String
+  candidateId         String?
+  linkedInCandidateId String?
+  sequenceId          String?
+  sequenceStepId      String?
+  candidateSequenceId String?
+  emailTemplateId     String?
+  to                  String
+  from                String
+  subject             String
+  bodyHtml            String
+  bodyText            String?
+  status              EmailStatus        @default(SCHEDULED)
+  scheduledAt         DateTime?
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  bouncedAt           DateTime?
+  openedAt            DateTime?
+  clickedAt           DateTime?
+  repliedAt           DateTime?
+  resendEmailId       String?
+  bounceReason        String?
+  errorMessage        String?
+  openCount           Int                @default(0)
+  clickCount          Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  direction           EmailDirection     @default(OUTBOUND)
+  isRead              Boolean            @default(false)
+  inReplyTo           String?
+  messageId           String?
+  candidate           Candidate?         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateSequence   CandidateSequence? @relation(fields: [candidateSequenceId], references: [id])
+  emailTemplate       email_templates?   @relation(fields: [emailTemplateId], references: [id])
+  linkedInCandidate   LinkedInCandidate? @relation(fields: [linkedInCandidateId], references: [id], onDelete: Cascade)
+  sequence            Sequence?          @relation(fields: [sequenceId], references: [id])
+  sequenceStep        SequenceStep?      @relation(fields: [sequenceStepId], references: [id])
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([candidateId])
+  @@index([linkedInCandidateId])
+  @@index([sequenceId])
+  @@index([candidateSequenceId])
+  @@index([status, scheduledAt])
+  @@index([sentAt])
+  @@index([resendEmailId])
+  @@index([messageId])
+  @@map("emails")
+}
+
+model checkpoint_blobs {
+  thread_id     String
+  checkpoint_ns String @default("")
+  channel       String
+  version       String
+  type          String
+  blob          Bytes?
+
+  @@id([thread_id, checkpoint_ns, channel, version])
+}
+
+model checkpoint_migrations {
+  v Int @id
+}
+
+model checkpoint_writes {
+  thread_id     String
+  checkpoint_ns String  @default("")
+  checkpoint_id String
+  task_id       String
+  idx           Int
+  channel       String
+  type          String?
+  blob          Bytes
+
+  @@id([thread_id, checkpoint_ns, checkpoint_id, task_id, idx])
+}
+
+model checkpoints {
+  thread_id            String
+  checkpoint_ns        String  @default("")
+  checkpoint_id        String
+  parent_checkpoint_id String?
+  type                 String?
+  checkpoint           Json
+  metadata             Json    @default("{}")
+
+  @@id([thread_id, checkpoint_ns, checkpoint_id])
 }
 
 enum SourcingJobStatus {
@@ -449,4 +632,31 @@ enum InterviewStatus {
   EXPIRED
   NO_SHOW
   CANCELLED
+}
+
+enum CandidateSequenceStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+  REPLIED
+  BOUNCED
+  UNSUBSCRIBED
+}
+
+enum EmailStatus {
+  SCHEDULED
+  SENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  OPENED
+  CLICKED
+  REPLIED
+  FAILED
+}
+
+enum EmailDirection {
+  OUTBOUND
+  INBOUND
 }

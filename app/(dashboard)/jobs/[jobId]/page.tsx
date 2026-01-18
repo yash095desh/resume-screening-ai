@@ -29,9 +29,11 @@ import {
   Upload,
   Loader2,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 import { toast } from "sonner"
 import { useApiClient } from '@/lib/api/client';
+import QuickEnrollModal from '@/components/outreach/QuickEnrollModal';
 
 interface Candidate {
   id: string;
@@ -65,6 +67,8 @@ export default function CandidateRankingsPage() {
   const [filterVerdict, setFilterVerdict] = useState('all');
   const [sortBy, setSortBy] = useState('score');
   const [exporting, setExporting] = useState(false);
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [showOutreachModal, setShowOutreachModal] = useState(false);
 
   useEffect(() => {
     fetchJob();
@@ -228,6 +232,24 @@ export default function CandidateRankingsPage() {
         </Card>
       )}
 
+      {/* Selection Action Bar */}
+      {selectedCandidates.length > 0 && (
+        <div className="p-4 bg-primary/10 rounded-lg border border-primary/20 flex items-center justify-between">
+          <span className="text-base text-foreground">
+            {selectedCandidates.length} candidate{selectedCandidates.length > 1 ? 's' : ''} selected
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setSelectedCandidates([])}>
+              Clear Selection
+            </Button>
+            <Button onClick={() => setShowOutreachModal(true)}>
+              <Mail className="w-4 h-4 mr-2" />
+              Start Outreach
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Filters and Search */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-4 pt-6">
@@ -294,6 +316,20 @@ export default function CandidateRankingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      className="cursor-pointer"
+                      checked={filteredCandidates.length > 0 && selectedCandidates.length === filteredCandidates.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCandidates(filteredCandidates.map(c => c.id));
+                        } else {
+                          setSelectedCandidates([]);
+                        }
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Score</TableHead>
                   <TableHead>Fit</TableHead>
@@ -306,6 +342,20 @@ export default function CandidateRankingsPage() {
               <TableBody>
                 {filteredCandidates.map((candidate) => (
                   <TableRow key={candidate.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="cursor-pointer"
+                        checked={selectedCandidates.includes(candidate.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCandidates([...selectedCandidates, candidate.id]);
+                          } else {
+                            setSelectedCandidates(selectedCandidates.filter(id => id !== candidate.id));
+                          }
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {candidate.name}
                       {candidate.email && (
@@ -418,6 +468,18 @@ export default function CandidateRankingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Quick Enroll Modal */}
+      <QuickEnrollModal
+        open={showOutreachModal}
+        onClose={() => setShowOutreachModal(false)}
+        jobId={params.jobId as string}
+        candidateIds={selectedCandidates}
+        onSuccess={() => {
+          setSelectedCandidates([]);
+          toast.success('Candidates enrolled in sequence');
+        }}
+      />
     </div>
   );
 }

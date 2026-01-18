@@ -55,6 +55,8 @@ import { Input } from "@/components/ui/input";
 import { useApiClient } from "@/lib/api/client";
 import { fetchEventSource } from "@microsoft/fetch-event-source"
 import { useAuth } from "@clerk/nextjs";
+import QuickEnrollModal from '@/components/outreach/QuickEnrollModal';
+import { toast } from "sonner";
 
 interface Candidate {
   id: string;
@@ -131,6 +133,10 @@ export default function SourcingJobDetailPage() {
   const [filterSeniority, setFilterSeniority] = useState<string>("all");
   const [filterContact, setFilterContact] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("score-desc");
+
+  // Bulk selection
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [showOutreachModal, setShowOutreachModal] = useState(false);
 
     useEffect(() => {
       let abortController: AbortController | null = null;
@@ -722,6 +728,24 @@ export default function SourcingJobDetailPage() {
           </Card>
         </div>
 
+        {/* Selection Action Bar */}
+        {selectedCandidates.length > 0 && (
+          <div className="p-4 bg-primary/10 rounded-lg border border-primary/20 flex items-center justify-between mb-4">
+            <span className="text-base text-foreground">
+              {selectedCandidates.length} candidate{selectedCandidates.length > 1 ? 's' : ''} selected
+            </span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setSelectedCandidates([])}>
+                Clear Selection
+              </Button>
+              <Button onClick={() => setShowOutreachModal(true)}>
+                <Mail className="w-4 h-4 mr-2" />
+                Start Outreach
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Compact Filters */}
         {job.candidates.length > 0 && (
           <Card className="border-muted mb-4">
@@ -803,13 +827,32 @@ export default function SourcingJobDetailPage() {
                   </Select>
                 </div>
 
-                {/* Results Count */}
-                {hasActiveFilters && (
-                  <div className="flex items-center justify-between pt-2 border-t">
-                    <span className="text-[10px] text-muted-foreground">
-                      Showing {filteredCandidates.length} of{" "}
-                      {job.candidates.length}
-                    </span>
+                {/* Results Count & Bulk Selection */}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="flex items-center gap-3">
+                    {hasActiveFilters && (
+                      <span className="text-[10px] text-muted-foreground">
+                        Showing {filteredCandidates.length} of{" "}
+                        {job.candidates.length}
+                      </span>
+                    )}
+                    <label className="flex items-center gap-1.5 cursor-pointer text-[10px] text-foreground">
+                      <input
+                        type="checkbox"
+                        className="cursor-pointer"
+                        checked={filteredCandidates.length > 0 && selectedCandidates.length === filteredCandidates.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCandidates(filteredCandidates.map(c => c.id));
+                          } else {
+                            setSelectedCandidates([]);
+                          }
+                        }}
+                      />
+                      Select All
+                    </label>
+                  </div>
+                  {hasActiveFilters && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -817,10 +860,10 @@ export default function SourcingJobDetailPage() {
                       className="h-6 text-[10px]"
                     >
                       <X className="w-3 h-3 mr-1" />
-                      Clear
+                      Clear Filters
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -862,10 +905,30 @@ export default function SourcingJobDetailPage() {
                 key={candidate.id}
                 candidate={candidate}
                 jobId={jobId}
+                isSelected={selectedCandidates.includes(candidate.id)}
+                onToggleSelect={(id, checked) => {
+                  if (checked) {
+                    setSelectedCandidates([...selectedCandidates, id]);
+                  } else {
+                    setSelectedCandidates(selectedCandidates.filter(cid => cid !== id));
+                  }
+                }}
               />
             ))}
           </div>
         )}
+
+        {/* Quick Enroll Modal */}
+        <QuickEnrollModal
+          open={showOutreachModal}
+          onClose={() => setShowOutreachModal(false)}
+          sourcingJobId={jobId}
+          linkedInCandidateIds={selectedCandidates}
+          onSuccess={() => {
+            setSelectedCandidates([]);
+            toast.success('Candidates enrolled in sequence');
+          }}
+        />
       </div>
     </div>
   );
@@ -875,33 +938,48 @@ export default function SourcingJobDetailPage() {
 function CandidateCard({
   candidate,
   jobId,
+  isSelected,
+  onToggleSelect,
 }: {
   candidate: Candidate;
   jobId: string;
+  isSelected: boolean;
+  onToggleSelect: (id: string, checked: boolean) => void;
 }) {
   return (
-    <Link href={`/sourcing/${jobId}/candidates/${candidate.id}`}>
-      <Card className="border-muted hover:border-primary/40 transition-all cursor-pointer group shadow-sm hover:shadow-md mb-1">
-        <CardContent className="p-3.5">
-          <div className="flex items-start gap-3">
-            {/* Avatar */}
-            <Avatar className="h-16 w-16 shrink-0">
-              <AvatarImage
-                src={candidate.photoUrl || undefined}
-                alt={candidate.fullName}
-              />
-              <AvatarFallback className="text-sm bg-muted font-medium">
-                {candidate.fullName
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
+    <Card className="border-muted hover:border-primary/40 transition-all group shadow-sm hover:shadow-md mb-1">
+      <CardContent className="p-3.5">
+        <div className="flex items-start gap-3">
+          {/* Checkbox */}
+          <input
+            type="checkbox"
+            className="mt-6 cursor-pointer"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect(candidate.id, e.target.checked);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Avatar */}
+          <Avatar className="h-16 w-16 shrink-0">
+            <AvatarImage
+              src={candidate.photoUrl || undefined}
+              alt={candidate.fullName}
+            />
+            <AvatarFallback className="text-sm bg-muted font-medium">
+              {candidate.fullName
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2)}
+            </AvatarFallback>
+          </Avatar>
 
-            {/* Content */}
-            <div className="flex-1 min-w-0 space-y-2">
+          {/* Content */}
+          <Link href={`/sourcing/${jobId}/candidates/${candidate.id}`} className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 space-y-2 cursor-pointer">
               {/* Name & Score */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -1004,21 +1082,21 @@ function CandidateCard({
                 )}
               </div>
             </div>
+          </Link>
 
-            {/* External Link */}
-            <a
-              href={candidate.profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+          {/* External Link */}
+          <a
+            href={candidate.profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-6"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
