@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Save, ArrowLeft, Info } from 'lucide-react';
+import { Loader2, Save, ArrowLeft, Info, Edit3, Eye } from 'lucide-react';
 
 const AVAILABLE_VARIABLES = [
   { key: '{{candidate_name}}', description: 'Name of the candidate' },
@@ -38,6 +39,8 @@ export default function EditTemplatePage() {
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [isDefault, setIsDefault] = useState(false);
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [editor, setEditor] = useState<any>(null);
 
   useEffect(() => {
     fetchTemplate();
@@ -68,15 +71,10 @@ export default function EditTemplatePage() {
     if (field === 'subject') {
       setSubject(prev => prev + ' ' + variable);
     } else {
-      // Insert variable at the end with a space
-      setBodyHtml(prev => {
-        // If content is empty or just default tags, add the variable directly
-        if (!prev || prev === '<p></p>') {
-          return `<p>${variable}</p>`;
-        }
-        // Otherwise append the variable
-        return prev.replace(/<\/p>$/, ` ${variable}</p>`);
-      });
+      // Use TipTap editor API to insert at cursor position
+      if (editor) {
+        editor.chain().focus().insertContent(` ${variable} `).run();
+      }
     }
   }
 
@@ -125,8 +123,9 @@ export default function EditTemplatePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="container mx-auto max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
         <Button
           variant="ghost"
           size="sm"
@@ -135,74 +134,98 @@ export default function EditTemplatePage() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Edit Email Template</h1>
-          <p className="mt-2 text-muted-foreground">
-            Update your email template for interview invitations or reminders
-          </p>
-        </div>
+        <h1 className="text-4xl font-bold">Edit Email Template</h1>
+        <p className="text-lg text-muted-foreground">
+          Update your email template for interview invitations or reminders
+        </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Form */}
-        <div className="lg:col-span-2">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Template Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-                {isDefault && (
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      This is a default template. Changes will only affect your account.
-                    </AlertDescription>
-                  </Alert>
-                )}
+      {isDefault && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            This is a default template. Changes will only affect your account.
+          </AlertDescription>
+        </Alert>
+      )}
 
-                {/* Template Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">
-                    Template Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Standard Interview Invitation"
-                    required
-                  />
-                </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Template Basic Info */}
+        <Card className="p-6 space-y-6">
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold">Template Details</h2>
+            <p className="text-sm text-muted-foreground">
+              Basic information about your email template
+            </p>
+          </div>
 
-                {/* Template Type */}
-                <div className="space-y-2">
-                  <Label htmlFor="type">
-                    Template Type <span className="text-red-500">*</span>
-                  </Label>
-                  <Select value={type} onValueChange={setType}>
-                    <SelectTrigger id="type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="INVITATION">Initial Invitation</SelectItem>
-                      <SelectItem value="REMINDER_24H">24-Hour Reminder</SelectItem>
-                      <SelectItem value="REMINDER_6H">6-Hour Urgent Reminder</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="space-y-4">
+            {/* Template Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name">Template Name</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Standard Interview Invitation"
+                required
+              />
+            </div>
 
+            {/* Template Type */}
+            <div className="space-y-2">
+              <Label htmlFor="type">Template Type</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger id="type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="INVITATION">Initial Invitation</SelectItem>
+                  <SelectItem value="REMINDER_24H">24-Hour Reminder</SelectItem>
+                  <SelectItem value="REMINDER_6H">6-Hour Urgent Reminder</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+
+        {/* Email Content with Tabs */}
+        <Card className="overflow-hidden">
+          <div className="bg-muted/50 border-b border-border p-4">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold">Email Content</h2>
+              <p className="text-sm text-muted-foreground">
+                Compose your email with subject and body
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'edit' | 'preview')}>
+              {/* Tab Triggers */}
+              <TabsList className="mb-6">
+                <TabsTrigger value="edit" className="flex items-center gap-2">
+                  <Edit3 className="h-4 w-4" />
+                  Edit
+                </TabsTrigger>
+                <TabsTrigger value="preview" className="flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  Preview
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Edit Tab */}
+              <TabsContent value="edit" className="space-y-6 mt-0">
                 {/* Subject Line */}
                 <div className="space-y-2">
-                  <Label htmlFor="subject">
-                    Subject Line <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="subject">Subject Line</Label>
                   <Input
                     id="subject"
                     value={subject}
@@ -210,7 +233,10 @@ export default function EditTemplatePage() {
                     placeholder="e.g., Interview Invitation for {{job_title}}"
                     required
                   />
-                  <div className="flex flex-wrap gap-1 mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Click variables to insert them into your subject
+                  </p>
+                  <div className="flex flex-wrap gap-2">
                     {AVAILABLE_VARIABLES.slice(0, 4).map(variable => (
                       <Button
                         key={variable.key}
@@ -227,18 +253,17 @@ export default function EditTemplatePage() {
 
                 {/* Email Body */}
                 <div className="space-y-2">
-                  <Label htmlFor="bodyHtml">
-                    Email Body <span className="text-red-500">*</span>
-                  </Label>
+                  <Label>Email Body</Label>
                   <RichTextEditor
                     value={bodyHtml}
                     onChange={setBodyHtml}
                     placeholder="Enter your email content here..."
+                    onEditorReady={setEditor}
                   />
-                  <p className="text-sm text-muted-foreground">
-                    Click the buttons below to insert variables into your email
+                  <p className="text-xs text-muted-foreground">
+                    Click variables to insert them into your email body
                   </p>
-                  <div className="flex flex-wrap gap-1 mt-2">
+                  <div className="flex flex-wrap gap-2">
                     {AVAILABLE_VARIABLES.map(variable => (
                       <Button
                         key={variable.key}
@@ -252,103 +277,78 @@ export default function EditTemplatePage() {
                     ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Actions */}
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
-                  </>
-                )}
-              </Button>
+                {/* Variables Guide */}
+                <Card className="bg-muted/30">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Info className="h-4 w-4" />
+                      Available Variables
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 text-sm">
+                      {AVAILABLE_VARIABLES.map(variable => (
+                        <div key={variable.key}>
+                          <code className="bg-background px-2 py-1 rounded text-xs border border-border">
+                            {variable.key}
+                          </code>
+                          <p className="text-muted-foreground mt-1">{variable.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push('/templates')}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        {/* Sidebar - Preview & Variables */}
-        <div className="space-y-6">
-          {/* Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">Subject:</p>
-                <p className="text-sm">{subject || 'No subject yet'}</p>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Body:</p>
-                <div
-                  className="bg-gray-50 rounded-lg p-4 text-sm max-h-96 overflow-y-auto"
-                  dangerouslySetInnerHTML={{
-                    __html: bodyHtml || '<p class="text-muted-foreground">No content yet</p>'
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Variables Guide */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Info className="h-5 w-5" />
-                Available Variables
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm">
-                {AVAILABLE_VARIABLES.map(variable => (
-                  <div key={variable.key}>
-                    <code className="bg-gray-100 px-2 py-1 rounded text-xs">
-                      {variable.key}
-                    </code>
-                    <p className="text-muted-foreground mt-1">{variable.description}</p>
+              {/* Preview Tab */}
+              <TabsContent value="preview" className="mt-0">
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Subject:</p>
+                    <p className="text-base font-medium">{subject || 'No subject yet'}</p>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Editor Tips */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Editor Tips</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                <li>Use the toolbar to format text (bold, italic, lists, etc.)</li>
-                <li>Click variable buttons to insert them into your email</li>
-                <li>Add headings for better email structure</li>
-                <li>Use bullet points or numbered lists for clarity</li>
-                <li>Add links using the link button in the toolbar</li>
-              </ul>
-            </CardContent>
-          </Card>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-3">Body:</p>
+                    <div
+                      className="bg-muted/30 rounded-lg border border-border p-6 text-sm leading-relaxed min-h-96"
+                      dangerouslySetInnerHTML={{
+                        __html: bodyHtml || '<p class="text-muted-foreground">No content yet</p>'
+                      }}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </Card>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push('/templates')}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

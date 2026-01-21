@@ -22,9 +22,10 @@ interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  onEditorReady?: (editor: any) => void;
 }
 
-export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder, onEditorReady }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -43,6 +44,12 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
     content: value,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+    },
+    onCreate: ({ editor }) => {
+      // Call onEditorReady when editor is created
+      if (onEditorReady) {
+        onEditorReady(editor);
+      }
     },
     editorProps: {
       attributes: {

@@ -33,20 +33,16 @@ export default function NewTemplatePage() {
   const [type, setType] = useState<string>('INVITATION');
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
+  const [editor, setEditor] = useState<any>(null);
 
   function insertVariable(variable: string, field: 'subject' | 'body') {
     if (field === 'subject') {
       setSubject(prev => prev + ' ' + variable);
     } else {
-      // Insert variable at the end with a space
-      setBodyHtml(prev => {
-        // If content is empty or just default tags, add the variable directly
-        if (!prev || prev === '<p></p>') {
-          return `<p>${variable}</p>`;
-        }
-        // Otherwise append the variable
-        return prev.replace(/<\/p>$/, ` ${variable}</p>`);
-      });
+      // Use TipTap editor API to insert at cursor position
+      if (editor) {
+        editor.chain().focus().insertContent(` ${variable} `).run();
+      }
     }
   }
 
@@ -186,6 +182,7 @@ export default function NewTemplatePage() {
                     value={bodyHtml}
                     onChange={setBodyHtml}
                     placeholder="Enter your email content here..."
+                    onEditorReady={setEditor}
                   />
                   <p className="text-sm text-muted-foreground">
                     Click the buttons below to insert variables into your email
