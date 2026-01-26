@@ -34,7 +34,7 @@ const HeroSection = () => {
           <div className="animate-fade-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
             <a href="mailto:info@recruitkar.com">
               <Button variant="gradient" size="xl" className="w-full sm:w-auto">
-                Start Free Trial
+                Get in Touch
                 <ArrowRight className="w-5 h-5" />
               </Button>
             </a>

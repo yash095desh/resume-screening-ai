@@ -22,7 +22,7 @@ const CTASection = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a href="mailto:info@recruitkar.com">
                 <Button variant="gradient" size="xl">
-                  Start Free Trial
+                  Get in Touch
                   <ArrowRight className="w-5 h-5" />
                 </Button>
               </a>
