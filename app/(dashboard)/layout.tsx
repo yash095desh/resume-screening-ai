@@ -19,8 +19,12 @@ export default function DashboardLayout({
       {/* Navbar */}
       <nav className="border-b border-border bg-card">
         <div className="mx-auto flex h-16 max-w-8xl items-center justify-between px-4">
-          <Link href="/" className="text-xl font-bold text-primary">
-            ResumeAI
+          <Link href="/dashboard" className="flex items-center">
+            <img
+              src="/logo.png"
+              alt="RecruitKar"
+              className="h-10 w-auto object-contain"
+            />
           </Link>
           <UserButton afterSignOutUrl="/" />
         </div>
@@ -31,7 +35,7 @@ export default function DashboardLayout({
         <aside className="w-64 border-r border-border bg-card">
           <nav className="space-y-1 p-4">
             <Link
-              href="/"
+              href="/dashboard"
               className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-muted transition-colors"
             >
               <LayoutDashboard size={20} />
