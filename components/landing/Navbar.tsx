@@ -26,7 +26,7 @@ const Navbar = () => {
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-hero-muted hover:text-hero-text transition-colors">Features</a>
             <a href="#how-it-works" className="text-hero-muted hover:text-hero-text transition-colors">How it Works</a>
-            <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors">Pricing</a>
+            {/* <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors">Pricing</a> */}
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -69,7 +69,7 @@ const Navbar = () => {
           <div className="md:hidden mt-4 pb-4 flex flex-col gap-4">
             <a href="#features" className="text-hero-muted hover:text-hero-text transition-colors py-2">Features</a>
             <a href="#how-it-works" className="text-hero-muted hover:text-hero-text transition-colors py-2">How it Works</a>
-            <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors py-2">Pricing</a>
+            {/* <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors py-2">Pricing</a> */}
             <div className="flex flex-col gap-3 pt-4 border-t border-hero-muted/20">
               {!isLoaded ? (
                 <div className="w-full h-10" />

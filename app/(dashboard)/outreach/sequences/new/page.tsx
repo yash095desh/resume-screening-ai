@@ -206,7 +206,7 @@ export default function NewSequencePage() {
                 rows={3}
               />
               <p className="text-xs text-muted-foreground">
-                Set delays for each step individually. First step's delay controls when the initial email is sent after enrollment.
+                Set delays for each step individually. First step&apos;s delay controls when the initial email is sent after enrollment.
               </p>
             </div>
           </div>

@@ -1,8 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play } from "lucide-react";
-import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 const HeroSection = () => {
   return (
@@ -33,16 +32,12 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="animate-fade-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/sign-up">
+            <a href="mailto:info@recruitkar.com">
               <Button variant="gradient" size="xl" className="w-full sm:w-auto">
                 Start Free Trial
                 <ArrowRight className="w-5 h-5" />
               </Button>
-            </Link>
-            <Button variant="heroOutline" size="xl" className="w-full sm:w-auto">
-              <Play className="w-5 h-5" />
-              Watch Demo
-            </Button>
+            </a>
           </div>
 
           {/* Stats - Problem-focused */}

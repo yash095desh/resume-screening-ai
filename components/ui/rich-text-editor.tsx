@@ -25,6 +25,30 @@ interface RichTextEditorProps {
   onEditorReady?: (editor: any) => void;
 }
 
+// ToolbarButton component (moved outside to avoid re-creation during render)
+const ToolbarButton = ({
+  onClick,
+  active,
+  children,
+  title,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  children: React.ReactNode;
+  title: string;
+}) => (
+  <Button
+    type="button"
+    variant={active ? 'secondary' : 'ghost'}
+    size="sm"
+    onClick={onClick}
+    title={title}
+    className="h-8 w-8 p-0"
+  >
+    {children}
+  </Button>
+);
+
 export function RichTextEditor({ value, onChange, placeholder, onEditorReady }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -70,29 +94,6 @@ export function RichTextEditor({ value, onChange, placeholder, onEditorReady }: 
       editor.chain().focus().setLink({ href: url }).run();
     }
   };
-
-  const ToolbarButton = ({
-    onClick,
-    active,
-    children,
-    title,
-  }: {
-    onClick: () => void;
-    active?: boolean;
-    children: React.ReactNode;
-    title: string;
-  }) => (
-    <Button
-      type="button"
-      variant={active ? 'secondary' : 'ghost'}
-      size="sm"
-      onClick={onClick}
-      title={title}
-      className="h-8 w-8 p-0"
-    >
-      {children}
-    </Button>
-  );
 
   return (
     <div className="border rounded-lg overflow-hidden">

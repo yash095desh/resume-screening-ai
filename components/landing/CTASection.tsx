@@ -20,15 +20,17 @@ const CTASection = () => {
               No more wasted hours on unqualified candidates. No more scheduling nightmares. No more losing top talent to slow processes. Start your free trial today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/sign-up">
+              <a href="mailto:info@recruitkar.com">
                 <Button variant="gradient" size="xl">
                   Start Free Trial
                   <ArrowRight className="w-5 h-5" />
                 </Button>
+              </a>
+              <Link href="/sign-up">
+                <Button variant="heroOutline" size="xl">
+                  Get Started
+                </Button>
               </Link>
-              <Button variant="heroOutline" size="xl">
-                Book a Demo
-              </Button>
             </div>
             <p className="text-sm text-hero-muted mt-6">
               No credit card required  ·  14-day free trial  ·  Cancel anytime

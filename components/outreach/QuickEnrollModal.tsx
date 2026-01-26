@@ -20,8 +20,11 @@ interface Sequence {
   id: string;
   name: string;
   totalSteps: number;
-  enrolledCount: number;
-  status: string;
+  enrolledCount?: number;
+  isActive: boolean;
+  _count?: {
+    candidateSequences: number;
+  };
 }
 
 interface QuickEnrollModalProps {
@@ -54,17 +57,21 @@ export default function QuickEnrollModal({
   async function fetchSequences() {
     setLoading(true);
     try {
-      const params: any = {};
-      if (jobId) params.jobId = jobId;
-      if (sourcingJobId) params.sourcingJobId = sourcingJobId;
-
-      const queryString = new URLSearchParams(params).toString();
-      const endpoint = queryString ? `/api/sequences?${queryString}` : '/api/sequences';
-
-      const { ok, data } = await api.get(endpoint);
+      // Fetch all sequences for the user (sequences are reusable templates, not job-specific)
+      const { ok, data } = await api.get('/api/sequences');
       if (ok) {
+        // Backend returns { sequences: [...] }, extract the array
+        const sequencesList = data.sequences || data;
         // Only show ACTIVE sequences
-        setSequences(data.filter((s: Sequence) => s.status === 'ACTIVE'));
+        const activeSequences = sequencesList.filter((s: Sequence) => s.isActive === true);
+        setSequences(activeSequences);
+
+        if (activeSequences.length === 0) {
+          console.log('No active sequences found for user');
+        }
+      } else {
+        console.error('Failed to fetch sequences: API returned not ok');
+        toast.error('Failed to load sequences');
       }
     } catch (error) {
       console.error('Failed to fetch sequences:', error);
@@ -82,18 +89,31 @@ export default function QuickEnrollModal({
 
     setEnrolling(true);
     try {
-      const { ok, data } = await api.post(`/api/sequences/${selectedSequence}/enroll`, {
+      // Use enroll-bulk endpoint for multiple candidates
+      const { ok, data } = await api.post(`/api/sequences/${selectedSequence}/enroll-bulk`, {
         candidateIds: candidateIds.length > 0 ? candidateIds : undefined,
         linkedInCandidateIds: linkedInCandidateIds.length > 0 ? linkedInCandidateIds : undefined,
         startImmediately: true
       });
 
       if (ok) {
-        toast.success(`Enrolled ${data.enrolled} candidate${data.enrolled > 1 ? 's' : ''}`);
+        const successCount = data.enrolled || 0;
+        const failedCount = data.failed || 0;
+
+        if (successCount > 0) {
+          toast.success(`Enrolled ${successCount} candidate${successCount > 1 ? 's' : ''}`);
+        }
+        if (failedCount > 0) {
+          toast.warning(`Failed to enroll ${failedCount} candidate${failedCount > 1 ? 's' : ''}`);
+        }
+
         onClose();
         onSuccess?.();
+      } else {
+        toast.error('Failed to enroll candidates');
       }
     } catch (error) {
+      console.error('Enrollment error:', error);
       toast.error('Failed to enroll candidates');
     } finally {
       setEnrolling(false);
@@ -105,7 +125,7 @@ export default function QuickEnrollModal({
       fetchSequences();
       setSelectedSequence('');
     }
-  }, [open, jobId, sourcingJobId]);
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -124,7 +144,9 @@ export default function QuickEnrollModal({
           </div>
         ) : sequences.length === 0 ? (
           <div className="py-8 text-center space-y-3">
-            <p className="text-sm text-muted-foreground">No active sequences found for this job</p>
+            <p className="text-sm text-muted-foreground">
+              No active sequences found. Create a sequence to start your outreach.
+            </p>
             <Button onClick={() => window.location.href = '/outreach/sequences/new'}>
               Create Sequence
             </Button>
@@ -142,7 +164,7 @@ export default function QuickEnrollModal({
                   <Label htmlFor={seq.id} className="flex-1 cursor-pointer">
                     <div className="font-medium text-sm">{seq.name}</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {seq.totalSteps} steps • {seq.enrolledCount} enrolled
+                      {seq.totalSteps} steps • {seq._count?.candidateSequences || 0} enrolled
                     </div>
                   </Label>
                 </div>

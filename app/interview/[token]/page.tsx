@@ -357,7 +357,7 @@ export default function PublicInterviewPage() {
                         </div>
                         <h3 className="font-medium">Test Your Microphone</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Let's make sure your audio is working properly
+                          Let&apos;s make sure your audio is working properly
                         </p>
                       </div>
 
@@ -394,7 +394,7 @@ export default function PublicInterviewPage() {
                         </div>
                         <h3 className="font-medium">Ready to Begin</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Your microphone is working. Start when you're ready.
+                          Your microphone is working. Start when you&apos;re ready.
                         </p>
                       </div>
 
@@ -510,7 +510,7 @@ export default function PublicInterviewPage() {
                   </div>
 
                   <div className="bg-muted/30 rounded-lg p-4 text-sm text-muted-foreground">
-                    <p>Your interview has been recorded and will be reviewed by the hiring team. You'll hear back within 2-3 business days.</p>
+                    <p>Your interview has been recorded and will be reviewed by the hiring team. You&apos;ll hear back within 2-3 business days.</p>
                   </div>
                 </div>
               )}

@@ -322,7 +322,7 @@ export default function EnrollmentPage() {
         </Button>
         <h1 className="text-4xl font-bold">Enroll Candidates</h1>
         <p className="text-lg text-muted-foreground">
-          Select candidates to enroll in "{sequenceName}"
+          Select candidates to enroll in &ldquo;{sequenceName}&rdquo;
         </p>
       </div>
 

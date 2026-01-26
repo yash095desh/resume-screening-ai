@@ -45,7 +45,7 @@ const TestimonialsSection = () => {
             <span className="text-gradient-primary">Us</span>
           </h2>
           <p className="text-lg text-hero-muted">
-            Join recruiters who've simplified their hiring workflow with one unified platform.
+            Join recruiters who&apos;ve simplified their hiring workflow with one unified platform.
           </p>
         </div>
 
@@ -70,7 +70,7 @@ const TestimonialsSection = () => {
 
               {/* Content */}
               <p className="text-hero-text text-lg leading-relaxed mb-6">
-                "{testimonial.content}"
+                &ldquo;{testimonial.content}&rdquo;
               </p>
 
               {/* Metric Badge */}

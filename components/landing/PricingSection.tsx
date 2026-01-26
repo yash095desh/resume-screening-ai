@@ -78,7 +78,7 @@ const PricingSection = () => {
             <span className="text-gradient-primary">Affordable Pricing.</span>
           </h2>
           <p className="text-lg text-hero-muted">
-            Pay less than what you'd spend on just one competitor tool. Get all 5 features included.
+            Pay less than what you&apos;d spend on just one competitor tool. Get all 5 features included.
           </p>
         </div>
 

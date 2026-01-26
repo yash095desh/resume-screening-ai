@@ -5,7 +5,7 @@ import FeaturesSection from "@/components/landing/FeaturesSection";
 import ProductShowcase from "@/components/landing/ProductShowcase";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
-import PricingSection from "@/components/landing/PricingSection";
+// import PricingSection from "@/components/landing/PricingSection"; // Commented out - payment integration not ready
 import CTASection from "@/components/landing/CTASection";
 import Footer from "@/components/landing/Footer";
 import type { Metadata } from 'next';
@@ -24,7 +24,7 @@ export default function LandingPage() {
       <ProductShowcase />
       <HowItWorksSection />
       <TestimonialsSection />
-      <PricingSection />
+      {/* <PricingSection /> */} {/* Commented out - payment integration not ready */}
       <CTASection />
       <Footer />
     </div>

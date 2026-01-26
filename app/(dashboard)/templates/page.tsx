@@ -163,7 +163,7 @@ export default function EmailTemplatesPage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Template</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Are you sure you want to delete "{template.name}"? This action cannot be undone.
+                      Are you sure you want to delete &ldquo;{template.name}&rdquo;? This action cannot be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

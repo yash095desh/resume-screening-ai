@@ -25,7 +25,10 @@ import {
   CheckCircle,
   Briefcase,
   Users,
+  Search,
+  ArrowUpDown,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 interface Candidate {
   id: string;
@@ -73,6 +76,9 @@ function PipelinePageContent() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedSequence, setSelectedSequence] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortField, setSortField] = useState<'name' | 'email' | 'score'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     fetchJobs();
@@ -246,6 +252,52 @@ function PipelinePageContent() {
       newSelected.add(id);
     }
     setSelected(newSelected);
+  }
+
+  function toggleSort(field: 'name' | 'email' | 'score') {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  }
+
+  function filterAndSortCandidates(candidates: Candidate[]) {
+    let filtered = candidates;
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.name.toLowerCase().includes(query) ||
+          c.email.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+
+      if (sortField === 'name') {
+        aVal = a.name.toLowerCase();
+        bVal = b.name.toLowerCase();
+      } else if (sortField === 'email') {
+        aVal = a.email.toLowerCase();
+        bVal = b.email.toLowerCase();
+      } else if (sortField === 'score') {
+        aVal = a.matchScore ?? -1;
+        bVal = b.matchScore ?? -1;
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
   }
 
   if (!selectedJob) {
@@ -440,46 +492,117 @@ function PipelinePageContent() {
         </Card>
       )}
 
-      {/* Pipeline Columns */}
+      {/* Pipeline Tabs */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <PipelineColumn
-            title="Not Contacted"
-            icon={<Inbox className="h-5 w-5" />}
-            candidates={pipeline.notContacted}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-            selectable
-          />
+        <Tabs defaultValue="not-contacted" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+            <TabsTrigger value="not-contacted" className="gap-2">
+              <Inbox className="h-4 w-4" />
+              <span className="hidden sm:inline">Not Contacted</span>
+              <span className="sm:hidden">Not Cont.</span>
+              <Badge variant="secondary" className="ml-1">
+                {pipeline.notContacted.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="in-sequence" className="gap-2">
+              <Send className="h-4 w-4" />
+              <span className="hidden sm:inline">In Sequence</span>
+              <span className="sm:hidden">Sequence</span>
+              <Badge variant="secondary" className="ml-1">
+                {pipeline.inSequence.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="replied" className="gap-2">
+              <Reply className="h-4 w-4" />
+              Replied
+              <Badge variant="secondary" className="ml-1">
+                {pipeline.replied.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="interview-sent" className="gap-2">
+              <CheckCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Interview Sent</span>
+              <span className="sm:hidden">Interview</span>
+              <Badge variant="secondary" className="ml-1">
+                {pipeline.interviewSent.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
 
-          <PipelineColumn
-            title="In Sequence"
-            icon={<Send className="h-5 w-5" />}
-            candidates={pipeline.inSequence}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-          />
+          {/* Search & Sort Controls */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toggleSort('name')}
+                className="gap-1"
+              >
+                Name
+                {sortField === 'name' && (
+                  <ArrowUpDown className="h-3 w-3" />
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toggleSort('score')}
+                className="gap-1"
+              >
+                Score
+                {sortField === 'score' && (
+                  <ArrowUpDown className="h-3 w-3" />
+                )}
+              </Button>
+            </div>
+          </div>
 
-          <PipelineColumn
-            title="Replied"
-            icon={<Reply className="h-5 w-5" />}
-            candidates={pipeline.replied}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-          />
+          <TabsContent value="not-contacted" className="space-y-0">
+            <CandidateListView
+              candidates={filterAndSortCandidates(pipeline.notContacted)}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+              selectable
+            />
+          </TabsContent>
 
-          <PipelineColumn
-            title="Interview Sent"
-            icon={<CheckCircle className="h-5 w-5" />}
-            candidates={pipeline.interviewSent}
-            selected={selected}
-            onToggleSelect={toggleSelect}
-          />
-        </div>
+          <TabsContent value="in-sequence" className="space-y-0">
+            <CandidateListView
+              candidates={filterAndSortCandidates(pipeline.inSequence)}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+            />
+          </TabsContent>
+
+          <TabsContent value="replied" className="space-y-0">
+            <CandidateListView
+              candidates={filterAndSortCandidates(pipeline.replied)}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+            />
+          </TabsContent>
+
+          <TabsContent value="interview-sent" className="space-y-0">
+            <CandidateListView
+              candidates={filterAndSortCandidates(pipeline.interviewSent)}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+            />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
@@ -497,42 +620,39 @@ export default function PipelinePage() {
   );
 }
 
-interface PipelineColumnProps {
-  title: string;
-  icon: React.ReactNode;
+interface CandidateListViewProps {
   candidates: Candidate[];
   selected: Set<string>;
   onToggleSelect: (id: string) => void;
   selectable?: boolean;
 }
 
-function PipelineColumn({
-  title,
-  icon,
+function CandidateListView({
   candidates,
   selected,
   onToggleSelect,
   selectable = false,
-}: PipelineColumnProps) {
-  return (
-    <div className="space-y-4">
-      {/* Column Header */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h2 className="text-lg font-semibold">{title}</h2>
+}: CandidateListViewProps) {
+  if (candidates.length === 0) {
+    return (
+      <Card className="p-12">
+        <div className="text-center space-y-2">
+          <p className="text-sm text-muted-foreground">No candidates found</p>
+          <p className="text-xs text-muted-foreground">
+            Try adjusting your search or check other tabs
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {candidates.length} candidate{candidates.length !== 1 ? 's' : ''}
-        </p>
-      </div>
+      </Card>
+    );
+  }
 
-      {/* Cards */}
-      <div className="space-y-3">
+  return (
+    <div className="space-y-3">
+      {/* Mobile: Cards */}
+      <div className="md:hidden space-y-2">
         {candidates.map((candidate) => (
           <Card key={candidate.id} className="p-4">
             <div className="space-y-3">
-              {/* Header with checkbox */}
               <div className="flex items-start gap-3">
                 {selectable && (
                   <Checkbox
@@ -541,29 +661,25 @@ function PipelineColumn({
                     className="mt-0.5"
                   />
                 )}
-
                 <div className="flex-1 space-y-1 min-w-0">
-                  <h3 className="font-medium truncate">{candidate.name}</h3>
-                  <p className="text-sm text-muted-foreground truncate">
+                  <h3 className="font-medium text-sm truncate">{candidate.name}</h3>
+                  <p className="text-xs text-muted-foreground truncate">
                     {candidate.email}
                   </p>
                 </div>
               </div>
 
-              {/* Metadata */}
               <div className="flex items-center gap-2 flex-wrap">
                 {candidate.matchScore !== null && (
                   <Badge variant="secondary" className="text-xs">
-                    {candidate.matchScore}% match
+                    {candidate.matchScore}%
                   </Badge>
                 )}
-
                 <Badge variant="outline" className="text-xs">
                   {candidate.source === 'SCREENING' ? 'Resume' : 'LinkedIn'}
                 </Badge>
               </div>
 
-              {/* Sequence Info */}
               {candidate.sequence && (
                 <div className="pt-2 border-t border-border space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">
@@ -577,13 +693,97 @@ function PipelineColumn({
             </div>
           </Card>
         ))}
-
-        {candidates.length === 0 && (
-          <div className="text-center py-8 text-sm text-muted-foreground">
-            No candidates
-          </div>
-        )}
       </div>
+
+      {/* Desktop: Table */}
+      <Card className="hidden md:block">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border">
+                {selectable && (
+                  <th className="w-12 px-4 py-3 text-left">
+                    <span className="sr-only">Select</span>
+                  </th>
+                )}
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Name
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Email
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Score
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Source
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                  Sequence
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map((candidate, index) => (
+                <tr
+                  key={candidate.id}
+                  className={`
+                    border-b border-border last:border-0
+                    hover:bg-muted/50 transition-colors
+                  `}
+                >
+                  {selectable && (
+                    <td className="px-4 py-3">
+                      <Checkbox
+                        checked={selected.has(candidate.id)}
+                        onCheckedChange={() => onToggleSelect(candidate.id)}
+                      />
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium truncate max-w-xs">
+                      {candidate.name}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="text-sm text-muted-foreground truncate max-w-xs">
+                      {candidate.email}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {candidate.matchScore !== null ? (
+                      <Badge variant="secondary" className="text-xs">
+                        {candidate.matchScore}%
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant="outline" className="text-xs">
+                      {candidate.source === 'SCREENING' ? 'Resume' : 'LinkedIn'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {candidate.sequence ? (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium truncate max-w-xs">
+                          {candidate.sequence.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Step {candidate.sequence.currentStep}/{candidate.sequence.totalSteps}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
