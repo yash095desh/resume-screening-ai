@@ -28,6 +28,10 @@ model User {
   totalEmailsSent         Int               @default(0)
   totalSpamComplaints     Int               @default(0)
   warmupStartedAt         DateTime?
+  emailProvider           EmailProvider     @default(POSTMARK)
+  postmarkDomainId        Int?
+  postmarkServerId        String?           @unique
+  postmarkServerToken     String?
   sourcingJobs            SourcingJob[]
   email_templates         email_templates[]
   emails                  Email[]
@@ -274,6 +278,8 @@ model plans {
   isActive         Boolean         @default(true)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime
+  interviewCredits Int             @default(0)
+  outreachCredits  Int             @default(0)
   subscriptions    subscriptions[]
 }
 
@@ -302,6 +308,8 @@ model user_credits {
   lastResetAt         DateTime              @default(now())
   createdAt           DateTime              @default(now())
   updatedAt           DateTime
+  interviewCredits    Int                   @default(0)
+  outreachCredits     Int                   @default(0)
   credit_transactions credit_transactions[]
   users               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -494,6 +502,9 @@ model Email {
   isRead              Boolean            @default(false)
   inReplyTo           String?
   messageId           String?
+  postmarkMessageId   String?
+  postmarkServerId    String?
+  provider            EmailProvider?
   candidate           Candidate?         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   candidateSequence   CandidateSequence? @relation(fields: [candidateSequenceId], references: [id])
   emailTemplate       email_templates?   @relation(fields: [emailTemplateId], references: [id])
@@ -511,7 +522,13 @@ model Email {
   @@index([sentAt])
   @@index([resendEmailId])
   @@index([messageId])
+  @@index([postmarkMessageId])
   @@map("emails")
+}
+
+enum EmailProvider {
+  RESEND
+  POSTMARK
 }
 
 enum SourcingJobStatus {
@@ -546,6 +563,8 @@ enum CandidateEnrichmentStatus {
 enum CreditCategory {
   SOURCING
   SCREENING
+  INTERVIEW
+  OUTREACH
 }
 
 enum SubscriptionStatus {

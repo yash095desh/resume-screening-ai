@@ -76,8 +76,8 @@ export default function SettingsPage() {
   async function fetchSubscription() {
     setIsLoadingSub(true);
     const { data, ok, error: err } = await api.get('/api/subscriptions');
-    if (ok && data) {
-      setSubscription(data);
+    if (ok && data && data.subscription) {
+      setSubscription(data.subscription);
     } else {
       setError(err || 'Failed to load subscription');
     }
@@ -111,7 +111,7 @@ export default function SettingsPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  const creditCards = credits && subscription ? [
+  const creditCards = credits && subscription && subscription.plan ? [
     {
       label: 'Sourcing',
       icon: TrendingUp,
@@ -213,7 +213,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Credit Overview */}
-        {subscription && credits && (
+        {subscription && subscription.plan && credits && (
           <Card className="border-border bg-card p-6">
             <div className="mb-6 flex items-center justify-between">
               <div className="space-y-1">
