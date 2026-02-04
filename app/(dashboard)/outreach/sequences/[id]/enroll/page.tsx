@@ -10,13 +10,8 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table,
   TableBody,
@@ -26,6 +21,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   ArrowLeft,
   Loader2,
   AlertCircle,
@@ -34,6 +34,11 @@ import {
   CheckSquare,
   Square,
   UserCheck,
+  ChevronRight,
+  ChevronDown,
+  Briefcase,
+  FileText,
+  Target,
 } from 'lucide-react';
 
 interface Candidate {
@@ -42,9 +47,18 @@ interface Candidate {
   email: string | null;
   matchScore: number;
   type: 'regular' | 'linkedin';
-  jobTitle?: string;
+  jobId: string;
+  jobTitle: string;
   headline?: string;
   alreadyEnrolled?: boolean;
+}
+
+interface JobGroup {
+  id: string;
+  title: string;
+  source: 'screening' | 'sourcing';
+  candidateCount: number;
+  candidates: Candidate[];
 }
 
 export default function EnrollmentPage() {
@@ -54,27 +68,24 @@ export default function EnrollmentPage() {
   const sequenceId = params.id as string;
 
   const [sequenceName, setSequenceName] = useState('');
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [filteredCandidates, setFilteredCandidates] = useState<Candidate[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [jobGroups, setJobGroups] = useState<JobGroup[]>([]);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [minMatchScore, setMinMatchScore] = useState(0);
-  const [showOnlyWithEmail, setShowOnlyWithEmail] = useState(true);
   const [showAlreadyEnrolled, setShowAlreadyEnrolled] = useState(false);
-  const [startImmediately, setStartImmediately] = useState(false);
+
+  // Collapsible state for sidebar sections
+  const [screeningOpen, setScreeningOpen] = useState(true);
+  const [sourcingOpen, setSourcingOpen] = useState(true);
 
   useEffect(() => {
     fetchData();
   }, [sequenceId]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [candidates, searchQuery, minMatchScore, showOnlyWithEmail, showAlreadyEnrolled]);
 
   async function fetchData() {
     try {
@@ -111,70 +122,104 @@ export default function EnrollmentPage() {
         )
       );
 
-      // Fetch all jobs and candidates
+      // Fetch screening jobs with candidates
       const jobsResponse = await fetch(`${apiUrl}/api/jobs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const sourcingResponse = await fetch(`${apiUrl}/api/sourcing?include=candidates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!jobsResponse.ok || !sourcingResponse.ok) {
-        throw new Error('Failed to fetch candidates');
+      if (!jobsResponse.ok) {
+        console.error('Failed to fetch jobs:', await jobsResponse.text());
       }
 
       const jobsData = await jobsResponse.json();
-      const sourcingData = await sourcingResponse.json();
+      console.log('Jobs API response:', jobsData);
+      const groups: JobGroup[] = [];
 
-      // Combine all candidates
-      const allCandidates: Candidate[] = [];
-
-      // Regular candidates from jobs
-      if(jobsData?.jobs){
-          for (const job of jobsData?.jobs) {
-            const candidatesResponse = await fetch(`${apiUrl}/api/candidates?jobId=${job.id}`, {
+      // Group screening candidates by job
+      const jobs = Array.isArray(jobsData) ? jobsData : (jobsData?.jobs || []);
+      if (jobs.length > 0) {
+        console.log('Processing jobs:', jobs.length);
+        for (const job of jobs) {
+          console.log('Processing job:', job.id, job.title);
+          const candidatesResponse = await fetch(
+            `${apiUrl}/api/candidates?jobId=${job.id}`,
+            {
               headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          if (candidatesResponse.ok) {
+            const candidatesData = await candidatesResponse.json();
+            console.log('Candidates for job', job.id, ':', candidatesData);
+            const allCandidates = candidatesData.candidates || [];
+            const candidates: Candidate[] = allCandidates
+              .filter((c: any) => c.email && c.email.trim() !== '') // Only candidates with email
+              .map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                email: c.email,
+                matchScore: c.matchScore || 0,
+                type: 'regular' as const,
+                jobId: job.id,
+                jobTitle: job.title,
+                alreadyEnrolled: enrolledIds.has(c.id),
+              }));
+
+            console.log('Job', job.title, '- Total candidates:', allCandidates.length, 'With email:', candidates.length);
+
+            // Always add job to list, even if no candidates with email
+            groups.push({
+              id: job.id,
+              title: job.title,
+              source: 'screening',
+              candidateCount: candidates.length,
+              candidates,
             });
-
-            if (candidatesResponse.ok) {
-              const candidatesData = await candidatesResponse.json();
-              for (const candidate of candidatesData.candidates || []) {
-                allCandidates.push({
-                  id: candidate.id,
-                  name: candidate.name,
-                  email: candidate.email,
-                  matchScore: candidate.matchScore || 0,
-                  type: 'regular',
-                  jobTitle: job.title,
-                  alreadyEnrolled: enrolledIds.has(candidate.id),
-                });
-              }
-            }
-          }
-      }
-
-      // LinkedIn candidates from sourcing jobs
-      if(sourcingData?.jobs){
-        for (const sourcingJob of sourcingData?.jobs) {
-          if (sourcingJob.candidates && Array.isArray(sourcingJob.candidates)) {
-            for (const candidate of sourcingJob.candidates) {
-              allCandidates.push({
-                id: candidate.id,
-                name: candidate.name,
-                email: candidate.email,
-                matchScore: candidate.matchScore || 0,
-                type: 'linkedin',
-                jobTitle: sourcingJob.title,
-                headline: candidate.headline,
-                alreadyEnrolled: enrolledIds.has(candidate.id),
-              });
-            }
+          } else {
+            console.error('Failed to fetch candidates for job', job.id);
           }
         }
       }
 
-      setCandidates(allCandidates);
+      // Fetch sourcing jobs with candidates
+      const sourcingResponse = await fetch(`${apiUrl}/api/sourcing?include=candidates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const sourcingData = await sourcingResponse.json();
+
+      // Group sourcing candidates by job
+      if (sourcingData?.jobs) {
+        for (const sourcingJob of sourcingData.jobs) {
+          if (sourcingJob.candidates && Array.isArray(sourcingJob.candidates)) {
+            const candidates: Candidate[] = sourcingJob.candidates
+              .filter((c: any) => c.email && c.email.trim() !== '') // Only candidates with email
+              .map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                email: c.email,
+                matchScore: c.matchScore || 0,
+                type: 'linkedin' as const,
+                jobId: sourcingJob.id,
+                jobTitle: sourcingJob.title,
+                headline: c.headline,
+                alreadyEnrolled: enrolledIds.has(c.id),
+              }));
+
+            // Always add job to list, even if no candidates with email
+            groups.push({
+              id: sourcingJob.id,
+              title: sourcingJob.title,
+              source: 'sourcing',
+              candidateCount: candidates.length,
+              candidates,
+            });
+          }
+        }
+      }
+
+      console.log('Final job groups:', groups);
+      setJobGroups(groups);
     } catch (err: any) {
       console.error('Error fetching data:', err);
       setError(err.message || 'Failed to load candidates');
@@ -183,65 +228,78 @@ export default function EnrollmentPage() {
     }
   }
 
-  function applyFilters() {
-    let filtered = [...candidates];
+  // Get filtered candidates from selected jobs
+  const getFilteredCandidates = (): Candidate[] => {
+    if (selectedJobIds.size === 0) return [];
 
-    // Filter by email
-    if (showOnlyWithEmail) {
-      filtered = filtered.filter((c) => c.email && c.email.trim() !== '');
-    }
+    let filtered: Candidate[] = [];
 
-    // Filter by already enrolled
+    // Get candidates from selected jobs
+    jobGroups.forEach((group) => {
+      if (selectedJobIds.has(group.id)) {
+        filtered = filtered.concat(group.candidates);
+      }
+    });
+
+    // Apply filters
     if (!showAlreadyEnrolled) {
       filtered = filtered.filter((c) => !c.alreadyEnrolled);
     }
 
-    // Filter by match score
-    if (minMatchScore > 0) {
-      filtered = filtered.filter((c) => c.matchScore >= minMatchScore);
-    }
-
-    // Filter by search query
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (c) =>
           c.name.toLowerCase().includes(query) ||
           (c.email && c.email.toLowerCase().includes(query)) ||
-          (c.jobTitle && c.jobTitle.toLowerCase().includes(query)) ||
+          c.jobTitle.toLowerCase().includes(query) ||
           (c.headline && c.headline.toLowerCase().includes(query))
       );
     }
 
-    setFilteredCandidates(filtered);
+    return filtered;
+  };
+
+  const filteredCandidates = getFilteredCandidates();
+  const selectableCandidates = filteredCandidates.filter((c) => !c.alreadyEnrolled);
+
+  function toggleJob(jobId: string) {
+    const newSelected = new Set(selectedJobIds);
+    if (newSelected.has(jobId)) {
+      newSelected.delete(jobId);
+      // Deselect all candidates from this job
+      const jobCandidates = jobGroups.find((g) => g.id === jobId)?.candidates || [];
+      jobCandidates.forEach((c) => selectedCandidateIds.delete(c.id));
+    } else {
+      newSelected.add(jobId);
+    }
+    setSelectedJobIds(newSelected);
   }
 
   function toggleCandidate(candidateId: string) {
-    const newSelected = new Set(selectedIds);
+    const newSelected = new Set(selectedCandidateIds);
     if (newSelected.has(candidateId)) {
       newSelected.delete(candidateId);
     } else {
       newSelected.add(candidateId);
     }
-    setSelectedIds(newSelected);
+    setSelectedCandidateIds(newSelected);
   }
 
-  function selectAll() {
-    const newSelected = new Set<string>();
-    filteredCandidates.forEach((c) => {
-      if (!c.alreadyEnrolled) {
-        newSelected.add(c.id);
-      }
+  function selectAllVisible() {
+    const newSelected = new Set(selectedCandidateIds);
+    selectableCandidates.forEach((c) => {
+      newSelected.add(c.id);
     });
-    setSelectedIds(newSelected);
+    setSelectedCandidateIds(newSelected);
   }
 
   function deselectAll() {
-    setSelectedIds(new Set());
+    setSelectedCandidateIds(new Set());
   }
 
   async function handleEnroll() {
-    if (selectedIds.size === 0) {
+    if (selectedCandidateIds.size === 0) {
       setError('Please select at least one candidate');
       return;
     }
@@ -253,8 +311,12 @@ export default function EnrollmentPage() {
       const token = await getToken();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-      // Separate regular and LinkedIn candidates
-      const selectedCandidates = candidates.filter((c) => selectedIds.has(c.id));
+      // Get selected candidates and separate by type
+      const allCandidates = jobGroups.flatMap((g) => g.candidates);
+      const selectedCandidates = allCandidates.filter((c) =>
+        selectedCandidateIds.has(c.id)
+      );
+
       const regularCandidateIds = selectedCandidates
         .filter((c) => c.type === 'regular')
         .map((c) => c.id);
@@ -273,7 +335,6 @@ export default function EnrollmentPage() {
           body: JSON.stringify({
             candidateIds: regularCandidateIds,
             linkedInCandidateIds: linkedInCandidateIds,
-            startImmediately,
           }),
         }
       );
@@ -309,241 +370,304 @@ export default function EnrollmentPage() {
     );
   }
 
-  const selectableCandidates = filteredCandidates.filter((c) => !c.alreadyEnrolled);
-  const selectedCount = selectedIds.size;
+  const screeningJobs = jobGroups.filter((g) => g.source === 'screening');
+  const sourcingJobs = jobGroups.filter((g) => g.source === 'sourcing');
+  const selectedCount = selectedCandidateIds.size;
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 py-8">
+    <div className="container mx-auto max-w-full px-4 py-8">
       {/* Header */}
-      <div className="space-y-2 mb-8">
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+      <div className="space-y-2 mb-6">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-        <h1 className="text-4xl font-bold">Enroll Candidates</h1>
-        <p className="text-lg text-muted-foreground">
-          Select candidates to enroll in &ldquo;{sequenceName}&rdquo;
+        <h1 className="text-3xl font-bold">Enroll Candidates</h1>
+        <p className="text-muted-foreground">
+          Select jobs from the sidebar, then choose candidates to enroll in &ldquo;{sequenceName}&rdquo;
         </p>
       </div>
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Filters & Actions */}
-      <Card className="p-6 mb-6 space-y-6">
-        <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Filters & Selection</h2>
-          <p className="text-sm text-muted-foreground">
-            Filter and select candidates to enroll in this sequence
-          </p>
-        </div>
+      {/* Main Layout: Candidates (Left/Center) + Job Sidebar (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+        {/* Candidates List - Left/Center */}
+        <div className="space-y-4 order-2 lg:order-1">
+          {/* Filters */}
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by name, email, or headline..."
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="space-y-2 lg:col-span-2">
-            <Label htmlFor="search">Search</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, email, or job..."
-                className="pl-9"
-              />
-            </div>
-          </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="showEnrolled"
+                  checked={showAlreadyEnrolled}
+                  onCheckedChange={(checked) =>
+                    setShowAlreadyEnrolled(checked as boolean)
+                  }
+                />
+                <Label htmlFor="showEnrolled" className="text-sm font-normal cursor-pointer">
+                  Show already enrolled
+                </Label>
+              </div>
 
-          {/* Min Match Score */}
-          <div className="space-y-2">
-            <Label htmlFor="matchScore">Min Match Score</Label>
-            <Select
-              value={minMatchScore.toString()}
-              onValueChange={(v) => setMinMatchScore(parseInt(v))}
-            >
-              <SelectTrigger id="matchScore">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Any Score</SelectItem>
-                <SelectItem value="50">50% or higher</SelectItem>
-                <SelectItem value="60">60% or higher</SelectItem>
-                <SelectItem value="70">70% or higher</SelectItem>
-                <SelectItem value="80">80% or higher</SelectItem>
-                <SelectItem value="90">90% or higher</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              <Separator />
 
-        <div className="flex flex-col gap-3">
-          {/* Checkbox Filters */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="hasEmail"
-              checked={showOnlyWithEmail}
-              onCheckedChange={(checked) => setShowOnlyWithEmail(checked as boolean)}
-            />
-            <Label htmlFor="hasEmail" className="text-sm font-normal cursor-pointer">
-              Only show candidates with email addresses
-            </Label>
-          </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllVisible}
+                    disabled={selectableCandidates.length === 0}
+                  >
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Select All ({selectableCandidates.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={deselectAll}
+                    disabled={selectedCount === 0}
+                  >
+                    <Square className="h-4 w-4 mr-2" />
+                    Deselect All
+                  </Button>
+                </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="showEnrolled"
-              checked={showAlreadyEnrolled}
-              onCheckedChange={(checked) => setShowAlreadyEnrolled(checked as boolean)}
-            />
-            <Label htmlFor="showEnrolled" className="text-sm font-normal cursor-pointer">
-              Show already enrolled candidates (for reference)
-            </Label>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="startImmediately"
-              checked={startImmediately}
-              onCheckedChange={(checked) => setStartImmediately(checked as boolean)}
-            />
-            <Label htmlFor="startImmediately" className="text-sm font-normal cursor-pointer">
-              Start sequence immediately (send first email now)
-            </Label>
-          </div>
-        </div>
-
-        {/* Bulk Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={selectAll}
-              disabled={selectableCandidates.length === 0}
-            >
-              <CheckSquare className="h-4 w-4 mr-2" />
-              Select All ({selectableCandidates.length})
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={deselectAll}
-              disabled={selectedCount === 0}
-            >
-              <Square className="h-4 w-4 mr-2" />
-              Deselect All
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">
-              {selectedCount} candidate{selectedCount !== 1 ? 's' : ''} selected
-            </span>
-            <Button
-              onClick={handleEnroll}
-              disabled={selectedCount === 0 || enrolling}
-            >
-              {enrolling ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Enrolling...
-                </>
-              ) : (
-                <>
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  Enroll {selectedCount} Candidate{selectedCount !== 1 ? 's' : ''}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      {/* Candidates Table */}
-      {filteredCandidates.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No candidates found</h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            Try adjusting your filters or add candidates to your jobs first
-          </p>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Job</TableHead>
-                <TableHead className="text-center">Match Score</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCandidates.map((candidate) => (
-                <TableRow
-                  key={candidate.id}
-                  className={candidate.alreadyEnrolled ? 'opacity-50' : ''}
-                >
-                  <TableCell>
-                    {!candidate.alreadyEnrolled && (
-                      <Checkbox
-                        checked={selectedIds.has(candidate.id)}
-                        onCheckedChange={() => toggleCandidate(candidate.id)}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="font-medium">{candidate.name}</div>
-                      {candidate.headline && (
-                        <div className="text-xs text-muted-foreground line-clamp-1">
-                          {candidate.headline}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">
-                      {candidate.email || (
-                        <span className="text-muted-foreground italic">No email</span>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{candidate.jobTitle}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline">{candidate.matchScore}%</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={candidate.type === 'linkedin' ? 'default' : 'secondary'}>
-                      {candidate.type === 'linkedin' ? 'LinkedIn' : 'Resume'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {candidate.alreadyEnrolled ? (
-                      <Badge variant="outline">Already Enrolled</Badge>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-muted-foreground">
+                    {selectedCount} selected
+                  </span>
+                  <Button
+                    onClick={handleEnroll}
+                    disabled={selectedCount === 0 || enrolling}
+                  >
+                    {enrolling ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Enrolling...
+                      </>
                     ) : (
-                      <Badge variant="secondary">Available</Badge>
+                      <>
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Enroll {selectedCount}
+                      </>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Candidates Table */}
+          {selectedJobIds.size === 0 ? (
+            <Card className="p-12 text-center">
+              <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Select Jobs First</h3>
+              <p className="text-sm text-muted-foreground">
+                Click on jobs in the sidebar to load their candidates
+              </p>
+            </Card>
+          ) : filteredCandidates.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No candidates found</h3>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your filters or select different jobs
+              </p>
+            </Card>
+          ) : (
+            <Card>
+              <ScrollArea className="h-[calc(100vh-400px)] w-full">
+                <div className="overflow-x-auto">
+                  <Table className="relative">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead className="min-w-[150px]">Name</TableHead>
+                        <TableHead className="min-w-[200px]">Email</TableHead>
+                        <TableHead className="text-center w-20">Score</TableHead>
+                        <TableHead className="w-24">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                  {filteredCandidates.map((candidate) => (
+                    <TableRow
+                      key={candidate.id}
+                      className={candidate.alreadyEnrolled ? 'opacity-50' : ''}
+                    >
+                      <TableCell>
+                        {!candidate.alreadyEnrolled && (
+                          <Checkbox
+                            checked={selectedCandidateIds.has(candidate.id)}
+                            onCheckedChange={() => toggleCandidate(candidate.id)}
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{candidate.name}</div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">
+                          {candidate.email || (
+                            <span className="text-muted-foreground italic">No email</span>
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline">{candidate.matchScore}%</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {candidate.alreadyEnrolled ? (
+                          <Badge variant="outline">Enrolled</Badge>
+                        ) : (
+                          <Badge variant="secondary">Available</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </ScrollArea>
         </Card>
-      )}
+        )}
+      </div>
+
+        {/* Job Selection Sidebar - Right */}
+        <Card className="p-4 h-fit sticky top-4 order-1 lg:order-2">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                SELECT JOBS
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Click jobs to load candidates. Select multiple jobs to enroll from different sources.
+              </p>
+            </div>
+
+            <ScrollArea className="h-[calc(100vh-300px)]">
+              <div className="space-y-3">
+                {/* Screening Jobs Section */}
+                <Collapsible open={screeningOpen} onOpenChange={setScreeningOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-accent rounded-md p-2">
+                    {screeningOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <FileText className="h-4 w-4 text-blue-500" />
+                    <span className="font-semibold text-sm">Resume Screening</span>
+                    <Badge variant="secondary" className="ml-auto">
+                      {screeningJobs.length}
+                    </Badge>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pl-6 mt-2 space-y-1">
+                    {screeningJobs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">No jobs</p>
+                    ) : (
+                      screeningJobs.map((job) => (
+                        <button
+                          key={job.id}
+                          onClick={() => toggleJob(job.id)}
+                          disabled={job.candidateCount === 0}
+                          className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
+                            job.candidateCount === 0
+                              ? 'opacity-50 cursor-not-allowed'
+                              : selectedJobIds.has(job.id)
+                              ? 'bg-primary text-primary-foreground font-medium'
+                              : 'hover:bg-accent'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{job.title}</span>
+                            <Badge
+                              variant="outline"
+                              className={`ml-2 ${job.candidateCount === 0 ? 'border-muted' : ''}`}
+                            >
+                              {job.candidateCount}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Separator />
+
+                {/* Sourcing Jobs Section */}
+                <Collapsible open={sourcingOpen} onOpenChange={setSourcingOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-accent rounded-md p-2">
+                    {sourcingOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    <Target className="h-4 w-4 text-green-500" />
+                    <span className="font-semibold text-sm">Sourced Candidates</span>
+                    <Badge variant="secondary" className="ml-auto">
+                      {sourcingJobs.length}
+                    </Badge>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pl-6 mt-2 space-y-1">
+                    {sourcingJobs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">No jobs</p>
+                    ) : (
+                      sourcingJobs.map((job) => (
+                        <button
+                          key={job.id}
+                          onClick={() => toggleJob(job.id)}
+                          disabled={job.candidateCount === 0}
+                          className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
+                            job.candidateCount === 0
+                              ? 'opacity-50 cursor-not-allowed'
+                              : selectedJobIds.has(job.id)
+                              ? 'bg-primary text-primary-foreground font-medium'
+                              : 'hover:bg-accent'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{job.title}</span>
+                            <Badge
+                              variant="outline"
+                              className={`ml-2 ${job.candidateCount === 0 ? 'border-muted' : ''}`}
+                            >
+                              {job.candidateCount}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            </ScrollArea>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

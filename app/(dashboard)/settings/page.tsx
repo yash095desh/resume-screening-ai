@@ -64,22 +64,22 @@ export default function SettingsPage() {
 
   async function fetchCredits() {
     setIsLoadingCredits(true);
-    const { data, ok, error: err } = await api.get('/api/credits/balance');
+    const { data, ok } = await api.get('/api/credits/balance');
     if (ok && data.balance) {
       setCredits(data.balance);
     } else {
-      setError(err || 'Failed to load credit balance');
+      setError(data?.error || 'Failed to load credit balance');
     }
     setIsLoadingCredits(false);
   }
 
   async function fetchSubscription() {
     setIsLoadingSub(true);
-    const { data, ok, error: err } = await api.get('/api/subscriptions');
+    const { data, ok } = await api.get('/api/subscriptions');
     if (ok && data && data.subscription) {
       setSubscription(data.subscription);
     } else {
-      setError(err || 'Failed to load subscription');
+      setError(data?.error || 'Failed to load subscription');
     }
     setIsLoadingSub(false);
   }
