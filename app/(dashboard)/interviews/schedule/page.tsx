@@ -307,7 +307,7 @@ export default function ScheduleInterviewsPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               {source === 'screening'
                 ? 'Upload and process resumes to see candidates here.'
-                : 'Start a LinkedIn sourcing job to find candidates.'}
+                : 'Start a sourcing job to find candidates.'}
             </p>
           </CardContent>
         </Card>
@@ -415,7 +415,7 @@ export default function ScheduleInterviewsPage() {
             Resume Screening ({screeningCandidates.length})
           </TabsTrigger>
           <TabsTrigger value="sourcing">
-            LinkedIn Sourcing ({sourcingCandidates.length})
+            AI Sourcing ({sourcingCandidates.length})
           </TabsTrigger>
         </TabsList>
 

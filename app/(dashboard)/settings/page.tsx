@@ -113,11 +113,11 @@ export default function SettingsPage() {
 
   const creditCards = credits && subscription && subscription.plan ? [
     {
-      label: 'Sourcing',
+      label: 'Search',
       icon: TrendingUp,
       used: credits.sourcingCredits,
       total: subscription.plan.sourcingCredits,
-      description: 'LinkedIn candidate searches'
+      description: 'Candidate searches'
     },
     {
       label: 'Screening',
@@ -144,34 +144,31 @@ export default function SettingsPage() {
 
   if (!isUserLoaded || isLoadingCredits || isLoadingSub) {
     return (
-      <div className="min-h-screen bg-background p-4 md:p-8">
-        <div className="mx-auto max-w-6xl space-y-8">
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-48" />
-            <Skeleton className="h-6 w-96" />
-          </div>
-          <Skeleton className="h-48 w-full" />
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-40 w-full" />
-            ))}
-          </div>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-5 w-96" />
+        </div>
+        <Skeleton className="h-48 w-full" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-40 w-full" />
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="mx-auto max-w-6xl space-y-8">
+    <div className="space-y-8">
 
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold leading-tight text-foreground md:text-4xl">
-            Settings
-          </h1>
-          <p className="text-base text-muted-foreground md:text-lg">
-            Manage your account, credits, and subscription
+          <h2 className="text-2xl font-bold leading-tight text-foreground">
+            Profile
+          </h2>
+          <p className="text-base text-muted-foreground">
+            Your account information and credit overview
           </p>
         </div>
 
@@ -382,7 +379,6 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-      </div>
     </div>
   );
 }

@@ -321,7 +321,7 @@ function PipelinePageContent() {
             </TabsTrigger>
             <TabsTrigger value="sourcing" className="gap-2">
               <Users className="h-4 w-4" />
-              LinkedIn Sourcing ({sourcingJobs.length})
+              AI Sourcing ({sourcingJobs.length})
             </TabsTrigger>
           </TabsList>
 
@@ -366,9 +366,9 @@ function PipelinePageContent() {
             {sourcingJobs.length === 0 ? (
               <Card className="p-12 text-center">
                 <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-xl font-semibold mb-2">No LinkedIn Sourcing Jobs</h3>
+                <h3 className="text-xl font-semibold mb-2">No Sourcing Jobs</h3>
                 <p className="text-muted-foreground">
-                  Create a sourcing job to find candidates on LinkedIn
+                  Create a sourcing job to find candidates
                 </p>
               </Card>
             ) : (
@@ -383,7 +383,7 @@ function PipelinePageContent() {
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-semibold text-lg line-clamp-2">{job.title}</h3>
                         <Badge variant="secondary" className="shrink-0">
-                          LinkedIn
+                          Sourced
                         </Badge>
                       </div>
                       <div className="space-y-1 text-sm text-muted-foreground">
@@ -430,7 +430,7 @@ function PipelinePageContent() {
               <h2 className="text-xl font-semibold">{selectedJobData.title}</h2>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Badge variant="secondary">
-                  {selectedJobData.source === 'SCREENING' ? 'Resume Screening' : 'LinkedIn Sourcing'}
+                  {selectedJobData.source === 'SCREENING' ? 'Resume Screening' : 'AI Sourcing'}
                 </Badge>
                 <span>•</span>
                 <span>
@@ -676,7 +676,7 @@ function CandidateListView({
                   </Badge>
                 )}
                 <Badge variant="outline" className="text-xs">
-                  {candidate.source === 'SCREENING' ? 'Resume' : 'LinkedIn'}
+                  {candidate.source === 'SCREENING' ? 'Resume' : 'Sourced'}
                 </Badge>
               </div>
 
@@ -761,7 +761,7 @@ function CandidateListView({
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="outline" className="text-xs">
-                      {candidate.source === 'SCREENING' ? 'Resume' : 'LinkedIn'}
+                      {candidate.source === 'SCREENING' ? 'Resume' : 'Sourced'}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">

@@ -271,7 +271,7 @@ export default async function DashboardPage() {
               </div>
               <CardTitle className="text-xl mt-4">AI Candidate Sourcing</CardTitle>
               <CardDescription>
-                Find and score top LinkedIn candidates automatically
+                Find and score top candidates automatically
               </CardDescription>
             </CardHeader>
             <CardContent>

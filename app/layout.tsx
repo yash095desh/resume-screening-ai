@@ -1,6 +1,7 @@
 import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import { Inter, Sora } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { Toaster } from 'sonner';
 
@@ -80,6 +81,11 @@ export default function RootLayout({
         <body className="font-sans antialiased">
           {children}
           <Toaster />
+          {/* Razorpay Checkout Script - loaded globally for payment flows */}
+          <Script
+            src="https://checkout.razorpay.com/v1/checkout.js"
+            strategy="lazyOnload"
+          />
         </body>
       </html>
     </ClerkProvider>

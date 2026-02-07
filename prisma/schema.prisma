@@ -37,6 +37,7 @@ model User {
   emails                  Email[]
   interviews              interviews[]
   jobs                    Job[]
+  payments                payments[]
   sequences               Sequence[]
   subscriptions           subscriptions?
   user_credits            user_credits?
@@ -280,24 +281,34 @@ model plans {
   updatedAt        DateTime
   interviewCredits Int             @default(0)
   outreachCredits  Int             @default(0)
+  razorpayPlanId   String?         @unique
+  payments         payments[]
   subscriptions    subscriptions[]
 }
 
 model subscriptions {
-  id                 String             @id
-  userId             String             @unique
-  planId             String
-  status             SubscriptionStatus @default(ACTIVE)
-  currentPeriodStart DateTime           @default(now())
-  currentPeriodEnd   DateTime
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime
-  cancelledAt        DateTime?
-  plans              plans              @relation(fields: [planId], references: [id])
-  users              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String             @id
+  userId                 String             @unique
+  planId                 String
+  status                 SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart     DateTime           @default(now())
+  currentPeriodEnd       DateTime
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime
+  cancelledAt            DateTime?
+  lastPaymentDate        DateTime?
+  lastPaymentId          String?
+  lastPaymentStatus      String?
+  nextBillingDate        DateTime?
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String?            @unique
+  payments               payments[]
+  plans                  plans              @relation(fields: [planId], references: [id])
+  users                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status, currentPeriodEnd])
   @@index([userId])
+  @@index([razorpaySubscriptionId])
 }
 
 model user_credits {
@@ -526,6 +537,58 @@ model Email {
   @@map("emails")
 }
 
+model credit_packages {
+  id            String         @id
+  name          String
+  description   String?
+  category      CreditCategory
+  credits       Int
+  priceInRupees Int
+  isActive      Boolean        @default(true)
+  isFeatured    Boolean        @default(false)
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  payments      payments[]
+
+  @@index([category, isActive])
+  @@index([isActive, sortOrder])
+}
+
+model payments {
+  id                     String           @id
+  userId                 String
+  amount                 Int
+  currency               String           @default("INR")
+  status                 PaymentStatus    @default(PENDING)
+  type                   PaymentType
+  razorpayOrderId        String?          @unique
+  razorpayPaymentId      String?          @unique
+  razorpaySignature      String?
+  razorpaySubscriptionId String?
+  creditPackageId        String?
+  creditCategory         CreditCategory?
+  creditsAdded           Int?
+  planId                 String?
+  subscriptionId         String?
+  createdAt              DateTime         @default(now())
+  completedAt            DateTime?
+  failedAt               DateTime?
+  errorCode              String?
+  errorMessage           String?
+  metadata               Json?
+  credit_packages        credit_packages? @relation(fields: [creditPackageId], references: [id])
+  plans                  plans?           @relation(fields: [planId], references: [id])
+  subscriptions          subscriptions?   @relation(fields: [subscriptionId], references: [id])
+  users                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([status, createdAt])
+  @@index([userId, status])
+  @@index([userId, type])
+}
+
 enum EmailProvider {
   RESEND
   POSTMARK
@@ -572,6 +635,7 @@ enum SubscriptionStatus {
   CANCELLED
   EXPIRED
   PENDING
+  PAYMENT_FAILED
 }
 
 enum TransactionType {
@@ -638,4 +702,17 @@ enum EmailStatus {
 enum EmailDirection {
   OUTBOUND
   INBOUND
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  CREDIT_PURCHASE
+  SUBSCRIPTION
 }

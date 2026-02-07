@@ -383,7 +383,7 @@ export default function CandidateDetailPage() {
             <Button variant="outline" size="sm" className="h-9 bg-white hover:bg-gray-50" asChild>
               <a href={candidate.profileUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
-                LinkedIn
+                View Profile
               </a>
             </Button>
             <Button variant="outline" size="sm" className="h-9 bg-white hover:bg-gray-50" onClick={downloadProfile}>
