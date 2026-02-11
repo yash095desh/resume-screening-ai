@@ -34,6 +34,8 @@ import {
 import { toast } from "sonner"
 import { useApiClient } from '@/lib/api/client';
 import QuickEnrollModal from '@/components/outreach/QuickEnrollModal';
+import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
+import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
 
 interface Candidate {
   id: string;
@@ -69,6 +71,7 @@ export default function CandidateRankingsPage() {
   const [exporting, setExporting] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [showOutreachModal, setShowOutreachModal] = useState(false);
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
 
   useEffect(() => {
     fetchJob();
@@ -200,19 +203,22 @@ export default function CandidateRankingsPage() {
             </Button>
           </Link>
           {pendingCandidates.length > 0 && (
-            <Button onClick={handleProcess} disabled={processing}>
-              {processing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Process Candidates
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-3">
+              <CreditCostBadge feature="SCREENING" quantity={pendingCandidates.length} />
+              <Button onClick={() => setShowCreditConfirm(true)} disabled={processing}>
+                {processing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Process Candidates
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -468,6 +474,16 @@ export default function CandidateRankingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Credit Confirmation Dialog */}
+      <CreditConfirmDialog
+        open={showCreditConfirm}
+        onOpenChange={setShowCreditConfirm}
+        featureType="SCREENING"
+        quantity={pendingCandidates.length}
+        actionLabel={`Screen ${pendingCandidates.length} resume${pendingCandidates.length !== 1 ? 's' : ''}`}
+        onConfirm={handleProcess}
+      />
 
       {/* Quick Enroll Modal */}
       <QuickEnrollModal

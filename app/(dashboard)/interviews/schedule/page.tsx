@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Mail, Users, Briefcase, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
+import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
 
 interface Candidate {
   id: string;
@@ -76,6 +78,9 @@ export default function ScheduleInterviewsPage() {
   const [customMessage, setCustomMessage] = useState('');
   const [expiryHours, setExpiryHours] = useState('48');
   const [sendImmediately, setSendImmediately] = useState(true);
+
+  // Credit confirmation
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
 
   // Scheduling states
   const [scheduledDate, setScheduledDate] = useState('');
@@ -399,14 +404,19 @@ export default function ScheduleInterviewsPage() {
           </p>
         </div>
 
-        <Button
-          onClick={openScheduleModal}
-          disabled={selectedCandidates.size === 0}
-          size="lg"
-        >
-          <Mail className="mr-2 h-4 w-4" />
-          Schedule {selectedCandidates.size > 0 && `(${selectedCandidates.size})`}
-        </Button>
+        <div className="flex items-center gap-3">
+          {selectedCandidates.size > 0 && (
+            <CreditCostBadge feature="INTERVIEW" quantity={selectedCandidates.size} />
+          )}
+          <Button
+            onClick={openScheduleModal}
+            disabled={selectedCandidates.size === 0}
+            size="lg"
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Schedule {selectedCandidates.size > 0 && `(${selectedCandidates.size})`}
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
@@ -691,13 +701,23 @@ export default function ScheduleInterviewsPage() {
             <Button variant="outline" onClick={() => setShowModal(false)}>
               Cancel
             </Button>
-            <Button onClick={scheduleInterviews} disabled={scheduling}>
+            <Button onClick={() => { setShowModal(false); setShowCreditConfirm(true); }} disabled={scheduling}>
               {scheduling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {scheduling ? 'Scheduling...' : 'Schedule Interviews'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Credit Confirmation Dialog */}
+      <CreditConfirmDialog
+        open={showCreditConfirm}
+        onOpenChange={setShowCreditConfirm}
+        featureType="INTERVIEW"
+        quantity={selectedCandidates.size}
+        actionLabel={`Schedule ${selectedCandidates.size} interview${selectedCandidates.size !== 1 ? 's' : ''}`}
+        onConfirm={scheduleInterviews}
+      />
     </div>
   );
 }

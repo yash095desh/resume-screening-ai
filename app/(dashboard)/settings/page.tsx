@@ -12,31 +12,31 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   User,
-  CreditCard,
   History,
-  Mail,
   Calendar,
   AlertCircle,
-  TrendingUp,
-  TrendingDown
+  Coins,
+  Search,
+  FileText,
+  Video,
+  Mail,
 } from 'lucide-react';
+import Link from 'next/link';
 
-interface CreditBalance {
-  sourcingCredits: number;
-  screeningCredits: number;
-  interviewCredits: number;
-  outreachCredits: number;
-}
+// Feature costs (must match backend)
+const FEATURE_COSTS = {
+  SOURCING: 6,
+  SCREENING: 1,
+  INTERVIEW: 145,
+  OUTREACH: 1,
+};
 
 interface Plan {
   id: string;
   name: string;
   slug: string;
   priceInRupees: number;
-  sourcingCredits: number;
-  screeningCredits: number;
-  interviewCredits: number;
-  outreachCredits: number;
+  credits: number;
 }
 
 interface Subscription {
@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const { user, isLoaded: isUserLoaded } = useUser();
   const api = useApiClient();
 
-  const [credits, setCredits] = useState<CreditBalance | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
   const [isLoadingSub, setIsLoadingSub] = useState(true);
@@ -60,13 +60,14 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchCredits();
     fetchSubscription();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchCredits() {
     setIsLoadingCredits(true);
     const { data, ok } = await api.get('/api/credits/balance');
-    if (ok && data.balance) {
-      setCredits(data.balance);
+    if (ok) {
+      setCredits(data.credits ?? data.balance?.credits ?? 0);
     } else {
       setError(data?.error || 'Failed to load credit balance');
     }
@@ -84,22 +85,11 @@ export default function SettingsPage() {
     setIsLoadingSub(false);
   }
 
-  function getCreditPercentage(used: number, total: number): number {
-    if (total === 0) return 0;
-    return Math.round((used / total) * 100);
-  }
-
-  function getCreditColor(percentage: number): string {
-    if (percentage > 50) return 'bg-green-500';
-    if (percentage > 20) return 'bg-yellow-500';
-    return 'bg-destructive';
-  }
-
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
   }
 
@@ -111,36 +101,10 @@ export default function SettingsPage() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  const creditCards = credits && subscription && subscription.plan ? [
-    {
-      label: 'Search',
-      icon: TrendingUp,
-      used: credits.sourcingCredits,
-      total: subscription.plan.sourcingCredits,
-      description: 'Candidate searches'
-    },
-    {
-      label: 'Screening',
-      icon: User,
-      used: credits.screeningCredits,
-      total: subscription.plan.screeningCredits,
-      description: 'Resume parsing & scoring'
-    },
-    {
-      label: 'Interview',
-      icon: CreditCard,
-      used: credits.interviewCredits,
-      total: subscription.plan.interviewCredits,
-      description: 'AI-powered interviews'
-    },
-    {
-      label: 'Outreach',
-      icon: Mail,
-      used: credits.outreachCredits,
-      total: subscription.plan.outreachCredits,
-      description: 'Email sequence enrollments'
-    }
-  ] : [];
+  const planCredits = subscription?.plan?.credits ?? 0;
+  const usedCredits = planCredits > 0 && credits !== null ? Math.max(planCredits - credits, 0) : 0;
+  const usagePercentage = planCredits > 0 ? Math.round((usedCredits / planCredits) * 100) : 0;
+  const currentCredits = credits ?? 0;
 
   if (!isUserLoaded || isLoadingCredits || isLoadingSub) {
     return (
@@ -150,235 +114,263 @@ export default function SettingsPage() {
           <Skeleton className="h-5 w-96" />
         </div>
         <Skeleton className="h-48 w-full" />
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-40 w-full" />
-          ))}
-        </div>
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
+      {/* Header */}
+      <div className="space-y-1">
+        <h2 className="text-2xl font-bold leading-tight text-foreground">Profile</h2>
+        <p className="text-base text-muted-foreground">
+          Your account information and credit overview
+        </p>
+      </div>
 
-        {/* Header */}
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold leading-tight text-foreground">
-            Profile
-          </h2>
-          <p className="text-base text-muted-foreground">
-            Your account information and credit overview
-          </p>
-        </div>
+      {/* Error Alert */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        {/* Error Alert */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Profile & Plan Card */}
-        <Card className="border-border bg-card p-6">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                <User className="h-8 w-8" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-xl font-semibold text-foreground">
-                  {user?.fullName || 'User'}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {user?.primaryEmailAddress?.emailAddress}
-                </p>
-                {subscription && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {subscription.plan.name} Plan
-                    </Badge>
+      {/* Profile & Plan Card */}
+      <Card className="border-border bg-card p-6">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <User className="h-8 w-8" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold text-foreground">
+                {user?.fullName || 'User'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {user?.primaryEmailAddress?.emailAddress}
+              </p>
+              {subscription && (
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {subscription.plan.name} Plan
+                  </Badge>
+                  {subscription.plan.priceInRupees > 0 && (
                     <span className="text-xs text-muted-foreground">
                       ₹{subscription.plan.priceInRupees.toLocaleString('en-IN')}/month
                     </span>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Credit Overview */}
+      <Card className="border-border bg-card p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <div className="space-y-1">
+            <h3 className="text-xl font-semibold text-foreground">Credit Usage</h3>
+            <p className="text-sm text-muted-foreground">
+              Your unified credit balance and feature breakdown
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={fetchCredits}>
+            <History className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Balance + Progress */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Coins className="h-5 w-5 text-muted-foreground" />
+              <span
+                className={`text-3xl font-bold ${
+                  currentCredits <= 10 ? 'text-destructive' : 'text-foreground'
+                }`}
+              >
+                {currentCredits}
+              </span>
+              {planCredits > 0 && (
+                <span className="text-base text-muted-foreground">/ {planCredits} credits</span>
+              )}
+              {planCredits === 0 && (
+                <span className="text-base text-muted-foreground">credits</span>
+              )}
+            </div>
+
+            {planCredits > 0 && (
+              <div className="space-y-1">
+                <Progress value={100 - usagePercentage} className="h-2" />
+                <p className="text-xs text-muted-foreground text-right">
+                  {usagePercentage}% used this cycle
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Feature Breakdown */}
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground mb-2">What you can do</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Search className="h-3.5 w-3.5" />
+                  <span className="text-xs">Searches</span>
+                </div>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.floor(currentCredits / FEATURE_COSTS.SOURCING)}
+                </p>
+                <p className="text-xs text-muted-foreground">{FEATURE_COSTS.SOURCING} cr each</p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="text-xs">Screenings</span>
+                </div>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.floor(currentCredits / FEATURE_COSTS.SCREENING)}
+                </p>
+                <p className="text-xs text-muted-foreground">{FEATURE_COSTS.SCREENING} cr each</p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Video className="h-3.5 w-3.5" />
+                  <span className="text-xs">Interviews</span>
+                </div>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.floor(currentCredits / FEATURE_COSTS.INTERVIEW)}
+                </p>
+                <p className="text-xs text-muted-foreground">{FEATURE_COSTS.INTERVIEW} cr each</p>
+              </div>
+
+              <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Mail className="h-3.5 w-3.5" />
+                  <span className="text-xs">Outreach</span>
+                </div>
+                <p className="text-lg font-semibold text-foreground">
+                  {Math.floor(currentCredits / FEATURE_COSTS.OUTREACH)}
+                </p>
+                <p className="text-xs text-muted-foreground">{FEATURE_COSTS.OUTREACH} cr each</p>
               </div>
             </div>
           </div>
-        </Card>
 
-        {/* Credit Overview */}
-        {subscription && subscription.plan && credits && (
-          <Card className="border-border bg-card p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <div className="space-y-1">
-                <h3 className="text-xl font-semibold text-foreground">Credit Overview</h3>
-                <p className="text-sm text-muted-foreground">
-                  Track your usage across all features
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={fetchCredits}>
-                <History className="mr-2 h-4 w-4" />
-                Refresh
+          {/* Buy Credits Link */}
+          <div className="flex items-center gap-3">
+            <Link href="/settings/billing?tab=credits">
+              <Button variant="outline" size="sm">
+                <Coins className="mr-2 h-4 w-4" />
+                Buy Credits
               </Button>
-            </div>
+            </Link>
+            <Link href="/settings/billing">
+              <Button variant="ghost" size="sm">
+                View Plans
+              </Button>
+            </Link>
+          </div>
 
-            {/* Credit Cards Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {creditCards.map((credit) => {
-                const percentage = getCreditPercentage(credit.used, credit.total);
-                const Icon = credit.icon;
-                const colorClass = getCreditColor(percentage);
-                const isLow = percentage < 20;
-
-                return (
-                  <Card key={credit.label} className="border-border bg-muted/30 p-4">
-                    <div className="space-y-3">
-                      {/* Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-muted-foreground" />
-                          <h4 className="text-sm font-medium text-foreground">
-                            {credit.label}
-                          </h4>
-                        </div>
-                        {isLow && (
-                          <AlertCircle className="h-4 w-4 text-destructive" />
-                        )}
-                      </div>
-
-                      {/* Count */}
-                      <div className="space-y-1">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-foreground">
-                            {credit.used}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            / {credit.total}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {credit.description}
-                        </p>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="space-y-1">
-                        <Progress
-                          value={percentage}
-                          className="h-2"
-                          indicatorClassName={colorClass}
-                        />
-                        <p className="text-xs text-right font-medium text-muted-foreground">
-                          {percentage}% remaining
-                        </p>
-                      </div>
-
-                      {/* Warning */}
-                      {isLow && (
-                        <p className="text-xs font-medium text-destructive">
-                          Low balance
-                        </p>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Reset Info */}
-            <div className="mt-6 flex items-center gap-2 rounded-md border border-border bg-muted/50 p-3">
+          {/* Renewal Info */}
+          {subscription && (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 p-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Credits reset in <span className="font-medium text-foreground">{getDaysUntilRenewal()} days</span>
-                {' '}on{' '}
+                Credits reset in{' '}
+                <span className="font-medium text-foreground">{getDaysUntilRenewal()} days</span> on{' '}
                 <span className="font-medium text-foreground">
                   {formatDate(subscription.currentPeriodEnd)}
                 </span>
               </p>
             </div>
-          </Card>
-        )}
+          )}
+        </div>
+      </Card>
 
-        {/* Account Information */}
-        <Card className="border-border bg-card p-6">
-          <div className="space-y-6">
+      {/* Account Information */}
+      <Card className="border-border bg-card p-6">
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <h3 className="text-xl font-semibold text-foreground">Account Information</h3>
+            <p className="text-sm text-muted-foreground">Your account details and membership</p>
+          </div>
+
+          <Separator className="bg-border" />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Email */}
             <div className="space-y-1">
-              <h3 className="text-xl font-semibold text-foreground">Account Information</h3>
-              <p className="text-sm text-muted-foreground">
-                Your account details and membership
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Email Address
+              </label>
+              <p className="text-base text-foreground">
+                {user?.primaryEmailAddress?.emailAddress}
               </p>
             </div>
 
-            <Separator className="bg-border" />
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Email */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Email Address
-                </label>
-                <p className="text-base text-foreground">
-                  {user?.primaryEmailAddress?.emailAddress}
-                </p>
-              </div>
-
-              {/* Member Since */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Member Since
-                </label>
-                <p className="text-base text-foreground">
-                  {user?.createdAt ? formatDate(user.createdAt.toString()) : 'N/A'}
-                </p>
-              </div>
-
-              {/* Plan */}
-              {subscription && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Current Plan
-                    </label>
-                    <p className="text-base text-foreground">
-                      {subscription.plan.name} Plan
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Billing Cycle
-                    </label>
-                    <p className="text-base text-foreground">
-                      ₹{subscription.plan.priceInRupees.toLocaleString('en-IN')}/month
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Current Period
-                    </label>
-                    <p className="text-base text-foreground">
-                      {formatDate(subscription.currentPeriodStart)} - {formatDate(subscription.currentPeriodEnd)}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Status
-                    </label>
-                    <Badge variant={subscription.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {subscription.status}
-                    </Badge>
-                  </div>
-                </>
-              )}
+            {/* Member Since */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Member Since
+              </label>
+              <p className="text-base text-foreground">
+                {user?.createdAt ? formatDate(user.createdAt.toString()) : 'N/A'}
+              </p>
             </div>
-          </div>
-        </Card>
 
+            {/* Plan */}
+            {subscription && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Current Plan
+                  </label>
+                  <p className="text-base text-foreground">{subscription.plan.name} Plan</p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Billing Cycle
+                  </label>
+                  <p className="text-base text-foreground">
+                    {subscription.plan.priceInRupees > 0
+                      ? `₹${subscription.plan.priceInRupees.toLocaleString('en-IN')}/month`
+                      : 'Free'}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Current Period
+                  </label>
+                  <p className="text-base text-foreground">
+                    {formatDate(subscription.currentPeriodStart)} -{' '}
+                    {formatDate(subscription.currentPeriodEnd)}
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Status
+                  </label>
+                  <Badge
+                    variant={subscription.status === 'ACTIVE' ? 'default' : 'secondary'}
+                  >
+                    {subscription.status}
+                  </Badge>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

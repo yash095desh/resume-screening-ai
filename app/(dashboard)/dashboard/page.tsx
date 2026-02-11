@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { auth } from '@clerk/nextjs/server';
 import type { Metadata } from 'next';
+import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -227,8 +228,9 @@ export default async function DashboardPage() {
                 </Link>
               </div>
               <CardTitle className="text-xl mt-4">Resume Screening</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 Upload resumes and get AI-powered matching scores
+                <CreditCostBadge feature="SCREENING" />
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -270,8 +272,9 @@ export default async function DashboardPage() {
                 </Link>
               </div>
               <CardTitle className="text-xl mt-4">AI Candidate Sourcing</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 Find and score top candidates automatically
+                <CreditCostBadge feature="SOURCING" />
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -324,8 +327,9 @@ export default async function DashboardPage() {
                 </Link>
               </div>
               <CardTitle className="text-xl mt-4">AI-Powered Interviews</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 Voice interviews with automated analysis and scoring
+                <CreditCostBadge feature="INTERVIEW" />
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -374,8 +378,9 @@ export default async function DashboardPage() {
                 </Link>
               </div>
               <CardTitle className="text-xl mt-4">Email Outreach</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 Multi-step email campaigns with automated follow-ups
+                <CreditCostBadge feature="OUTREACH" />
               </CardDescription>
             </CardHeader>
             <CardContent>

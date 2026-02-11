@@ -37,10 +37,6 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  Search,
-  FileText,
-  Video,
-  Mail,
   Crown,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,13 +52,6 @@ const STATUS_BADGES: Record<string, { variant: 'default' | 'secondary' | 'destru
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   CREDIT_PURCHASE: <CreditCard className="h-4 w-4" />,
   SUBSCRIPTION: <Crown className="h-4 w-4" />,
-};
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  SOURCING: <Search className="h-4 w-4" />,
-  SCREENING: <FileText className="h-4 w-4" />,
-  INTERVIEW: <Video className="h-4 w-4" />,
-  OUTREACH: <Mail className="h-4 w-4" />,
 };
 
 export default function PaymentHistoryPage() {
@@ -131,8 +120,11 @@ export default function PaymentHistoryPage() {
 
   // Get payment description
   const getPaymentDescription = (payment: Payment) => {
-    if (payment.type === 'CREDIT_PURCHASE' && payment.creditPackage) {
-      return `${payment.creditPackage.name} (${payment.creditsAdded} credits)`;
+    if (payment.type === 'CREDIT_PURCHASE' && payment.creditsPurchased) {
+      const rate = payment.pricePerCredit
+        ? ` at ${formatPrice(payment.pricePerCredit)}/credit`
+        : '';
+      return `Purchased ${payment.creditsPurchased} credits${rate}`;
     }
     if (payment.type === 'SUBSCRIPTION' && payment.plan) {
       return `${payment.plan.name} Plan - Monthly`;
@@ -244,12 +236,7 @@ export default function PaymentHistoryPage() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {payment.creditCategory && CATEGORY_ICONS[payment.creditCategory]}
-                        {getPaymentDescription(payment)}
-                      </div>
-                    </TableCell>
+                    <TableCell>{getPaymentDescription(payment)}</TableCell>
                     <TableCell className="font-semibold">
                       {formatPrice(payment.amount)}
                     </TableCell>
@@ -319,10 +306,18 @@ export default function PaymentHistoryPage() {
                   <p className="font-medium">{getPaymentDescription(selectedPayment)}</p>
                 </div>
 
-                {selectedPayment.creditsAdded && (
-                  <div>
-                    <p className="text-muted-foreground text-sm">Credits Added</p>
-                    <p className="font-medium">{selectedPayment.creditsAdded} credits</p>
+                {selectedPayment.creditsPurchased && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-muted-foreground text-sm">Credits Purchased</p>
+                      <p className="font-medium">{selectedPayment.creditsPurchased} credits</p>
+                    </div>
+                    {selectedPayment.pricePerCredit && (
+                      <div>
+                        <p className="text-muted-foreground text-sm">Rate</p>
+                        <p className="font-medium">{formatPrice(selectedPayment.pricePerCredit)}/credit</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

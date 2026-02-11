@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { LayoutDashboard, Settings, Upload, Search, Video, Mail, CheckCircle, Inbox, ListChecks, ChevronDown, ChevronRight } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CreditBalanceCard } from '@/components/payments/CreditBalanceCard';
 
 export default function DashboardLayout({
   children,
@@ -15,7 +16,7 @@ export default function DashboardLayout({
   const [interviewsOpen, setInterviewsOpen] = useState(true);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-hidden bg-background">
       {/* Navbar */}
       <nav className="border-b border-border bg-card">
         <div className="mx-auto flex h-16 max-w-8xl items-center justify-between px-4">
@@ -30,10 +31,10 @@ export default function DashboardLayout({
         </div>
       </nav>
 
-      <div className="mx-auto flex">
+      <div className="mx-auto flex h-[calc(100vh-64px)]">
         {/* Sidebar */}
-        <aside className="w-64 border-r border-border bg-card">
-          <nav className="space-y-1 p-4">
+        <aside className="w-64 border-r border-border bg-card h-full flex flex-col">
+          <nav className="flex-1 overflow-y-auto scrollbar-thin space-y-1 p-4">
             <Link
               href="/dashboard"
               className="flex items-center gap-2 rounded-lg px-4 py-2 hover:bg-muted transition-colors"
@@ -176,10 +177,15 @@ export default function DashboardLayout({
               </Link>
             </div>
           </nav>
+
+          {/* Credit Balance - bottom of sidebar */}
+          <div className="border-t border-border p-4">
+            <CreditBalanceCard variant="compact" />
+          </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-8 bg-background">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto scrollbar-thin p-8 bg-background">{children}</main>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import { Loader2, CreditCard, Zap } from 'lucide-react';
 type ButtonProps = ComponentProps<typeof Button>;
 
 interface PaymentButtonProps extends Omit<ButtonProps, 'onClick'> {
-  packageId?: string;
+  creditAmount?: number;
   planSlug?: string;
   onSuccess?: (balance?: CreditBalance) => void;
   children?: React.ReactNode;
@@ -17,9 +17,9 @@ interface PaymentButtonProps extends Omit<ButtonProps, 'onClick'> {
 /**
  * PaymentButton component for initiating Razorpay payments
  *
- * Usage for credit package purchase:
- * <PaymentButton packageId="pkg_123" onSuccess={handleSuccess}>
- *   Buy 50 Credits
+ * Usage for credit purchase:
+ * <PaymentButton creditAmount={100} onSuccess={handleSuccess}>
+ *   Buy 100 Credits
  * </PaymentButton>
  *
  * Usage for subscription upgrade:
@@ -28,22 +28,22 @@ interface PaymentButtonProps extends Omit<ButtonProps, 'onClick'> {
  * </PaymentButton>
  */
 export function PaymentButton({
-  packageId,
+  creditAmount,
   planSlug,
   onSuccess,
   children,
   disabled,
   ...props
 }: PaymentButtonProps) {
-  const { purchaseCreditPackage, subscribeToPlan, isLoading } = useRazorpay();
+  const { purchaseCredits, subscribeToPlan, isLoading } = useRazorpay();
   const [loading, setLoading] = useState(false);
 
   const handleClick = async () => {
     setLoading(true);
 
     try {
-      if (packageId) {
-        await purchaseCreditPackage(packageId, (balance) => {
+      if (creditAmount) {
+        await purchaseCredits(creditAmount, (balance) => {
           onSuccess?.(balance);
         });
       } else if (planSlug) {
@@ -72,7 +72,7 @@ export function PaymentButton({
       ) : (
         children || (
           <>
-            {packageId ? (
+            {creditAmount ? (
               <>
                 <CreditCard className="mr-2 h-4 w-4" />
                 Buy Now

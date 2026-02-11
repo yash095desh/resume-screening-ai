@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useApiClient } from "@/lib/api/client";
+import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
+import { CreditConfirmDialog } from "@/components/credits/CreditConfirmDialog";
 
 export default function NewSourcingJobPage() {
   const { post } = useApiClient();
@@ -43,6 +45,7 @@ export default function NewSourcingJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCustomCandidates, setIsCustomCandidates] = useState(false);
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -59,8 +62,12 @@ export default function NewSourcingJobPage() {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowCreditConfirm(true);
+  };
+
+  const handleConfirmedSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
 
@@ -93,7 +100,7 @@ export default function NewSourcingJobPage() {
   const charCountColor = charCount < 50 ? "text-red-600" : charCount > 4500 ? "text-yellow-600" : "text-gray-500";
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="max-w-5xl mx-auto space-y-6 pb-12 relative">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/sourcing">
@@ -158,10 +165,10 @@ export default function NewSourcingJobPage() {
                 id="requiredSkills"
                 placeholder="Enter required skills, separated by commas or line breaks...
 
-Examples:
-- React, Node.js, TypeScript, PostgreSQL
-- Python, AWS, Docker, Kubernetes
-- Java, Spring Boot, Microservices, REST APIs"
+                Examples:
+                - React, Node.js, TypeScript, PostgreSQL
+                - Python, AWS, Docker, Kubernetes
+                - Java, Spring Boot, Microservices, REST APIs"
                 value={formData.jobRequirements.requiredSkills}
                 onChange={(e) =>
                   setFormData({ 
@@ -196,10 +203,10 @@ Examples:
                 id="niceToHave"
                 placeholder="Enter preferred but not required skills...
 
-Examples:
-- GraphQL, Redis, MongoDB
-- CI/CD, Terraform, Jenkins
-- Machine Learning, Data Science"
+                Examples:
+                - GraphQL, Redis, MongoDB
+                - CI/CD, Terraform, Jenkins
+                - Machine Learning, Data Science"
                 value={formData.jobRequirements.niceToHave}
                 onChange={(e) =>
                   setFormData({ 
@@ -422,16 +429,16 @@ Examples:
                 id="jobDescription"
                 placeholder="Paste your full job description here...
 
-Include:
-- Detailed responsibilities and day-to-day tasks
-- Team structure and who they'll work with
-- Projects they'll be working on
-- Company culture and values
-- Growth opportunities
-- Any other relevant information
+                Include:
+                - Detailed responsibilities and day-to-day tasks
+                - Team structure and who they'll work with
+                - Projects they'll be working on
+                - Company culture and values
+                - Growth opportunities
+                - Any other relevant information
 
-The more detailed your description, the better the AI can match candidates!"
-                value={formData.jobDescription}
+                The more detailed your description, the better the AI can match candidates!"
+                                value={formData.jobDescription}
                 onChange={(e) =>
                   setFormData({ ...formData, jobDescription: e.target.value })
                 }
@@ -462,6 +469,7 @@ The more detailed your description, the better the AI can match candidates!"
               <Label htmlFor="maxCandidates" className="text-base font-semibold flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Maximum Candidates to Source
+                <CreditCostBadge feature="SOURCING" />
               </Label>
               <Select
                 value={isCustomCandidates ? "custom" : formData.maxCandidates.toString()}
@@ -673,6 +681,16 @@ The more detailed your description, the better the AI can match candidates!"
           </CardContent>
         </Card>
       </div>
+
+      {/* Credit Confirmation Dialog */}
+      <CreditConfirmDialog
+        open={showCreditConfirm}
+        onOpenChange={setShowCreditConfirm}
+        featureType="SOURCING"
+        quantity={formData.maxCandidates}
+        actionLabel={`Search for up to ${formData.maxCandidates} candidates`}
+        onConfirm={handleConfirmedSubmit}
+      />
 
       {/* Tips Card */}
       <Card className="bg-purple-50 border-purple-200">

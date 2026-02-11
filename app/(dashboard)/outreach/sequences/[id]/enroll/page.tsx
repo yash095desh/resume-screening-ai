@@ -40,6 +40,8 @@ import {
   FileText,
   Target,
 } from 'lucide-react';
+import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
+import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
 
 interface Candidate {
   id: string;
@@ -68,7 +70,9 @@ export default function EnrollmentPage() {
   const sequenceId = params.id as string;
 
   const [sequenceName, setSequenceName] = useState('');
+  const [sequenceSteps, setSequenceSteps] = useState(1);
   const [jobGroups, setJobGroups] = useState<JobGroup[]>([]);
+  const [showCreditConfirm, setShowCreditConfirm] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
 
@@ -106,6 +110,7 @@ export default function EnrollmentPage() {
 
       const sequenceData = await sequenceResponse.json();
       setSequenceName(sequenceData.name);
+      setSequenceSteps(sequenceData.totalSteps || sequenceData.steps?.length || 1);
 
       // Fetch enrolled candidates
       const enrolledResponse = await fetch(
@@ -460,8 +465,11 @@ export default function EnrollmentPage() {
                   <span className="text-sm text-muted-foreground">
                     {selectedCount} selected
                   </span>
+                  {selectedCount > 0 && (
+                    <CreditCostBadge feature="OUTREACH" quantity={selectedCount * sequenceSteps} />
+                  )}
                   <Button
-                    onClick={handleEnroll}
+                    onClick={() => setShowCreditConfirm(true)}
                     disabled={selectedCount === 0 || enrolling}
                   >
                     {enrolling ? (
@@ -668,6 +676,16 @@ export default function EnrollmentPage() {
           </div>
         </Card>
       </div>
+
+      {/* Credit Confirmation Dialog */}
+      <CreditConfirmDialog
+        open={showCreditConfirm}
+        onOpenChange={setShowCreditConfirm}
+        featureType="OUTREACH"
+        quantity={selectedCandidateIds.size * sequenceSteps}
+        actionLabel={`Enroll ${selectedCandidateIds.size} candidate${selectedCandidateIds.size !== 1 ? 's' : ''} in ${sequenceSteps}-step sequence`}
+        onConfirm={handleEnroll}
+      />
     </div>
   );
 }

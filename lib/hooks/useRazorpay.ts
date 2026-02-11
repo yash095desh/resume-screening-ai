@@ -38,16 +38,28 @@ export interface RazorpayResponse {
   razorpay_signature: string;
 }
 
-// Credit package from backend
-export interface CreditPackage {
-  id: string;
-  name: string;
-  description: string | null;
-  category: 'SOURCING' | 'SCREENING' | 'INTERVIEW' | 'OUTREACH';
-  credits: number;
-  priceInRupees: number;
-  isActive: boolean;
-  isFeatured: boolean;
+// Pricing tier for custom credit purchases
+export interface PricingTier {
+  min: number;
+  max: number;
+  pricePerCredit: number;
+  label: string;
+}
+
+// Credit pricing config from backend
+export interface CreditPricing {
+  tiers: PricingTier[];
+  minPurchase: number;
+  maxPurchase: number;
+  currency: string;
+}
+
+// Feature costs from backend
+export interface FeatureCosts {
+  SCREENING: number;
+  SOURCING: number;
+  INTERVIEW: number;
+  OUTREACH: number;
 }
 
 // Subscription plan from backend
@@ -57,10 +69,8 @@ export interface SubscriptionPlan {
   slug: string;
   description: string | null;
   priceInRupees: number;
-  sourcingCredits: number;
-  screeningCredits: number;
-  interviewCredits: number;
-  outreachCredits: number;
+  credits: number;
+  billingCycle: string;
   razorpayPlanId: string | null;
 }
 
@@ -71,9 +81,8 @@ export interface Payment {
   amount: number;
   currency: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
-  creditCategory?: string;
-  creditsAdded?: number;
-  creditPackage?: CreditPackage;
+  creditsPurchased?: number;
+  pricePerCredit?: number;
   plan?: SubscriptionPlan;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
@@ -86,10 +95,14 @@ export interface Payment {
 
 // Credit balance from backend
 export interface CreditBalance {
-  sourcingCredits: number;
-  screeningCredits: number;
-  interviewCredits: number;
-  outreachCredits: number;
+  credits: number;
+}
+
+// Price calculation result
+export interface PriceCalculation {
+  totalPrice: number;
+  pricePerCredit: number;
+  tierLabel: string;
 }
 
 declare global {
@@ -141,10 +154,44 @@ export function useRazorpay() {
   );
 
   /**
-   * Purchase credit package
+   * Fetch feature costs and pricing tiers
    */
-  const purchaseCreditPackage = useCallback(
-    async (packageId: string, onSuccess?: (credits: CreditBalance) => void) => {
+  const fetchFeatureCosts = useCallback(async () => {
+    const { data, ok } = await api.get('/api/credits/feature-costs');
+
+    if (ok && data.success) {
+      return {
+        costs: data.costs as FeatureCosts,
+        pricing: data.pricing as CreditPricing,
+      };
+    }
+
+    return null;
+  }, [api]);
+
+  /**
+   * Calculate price for a given credit amount
+   */
+  const calculatePrice = useCallback(
+    async (credits: number) => {
+      const { data, ok } = await api.post('/api/payments/calculate-price', {
+        credits,
+      });
+
+      if (ok && data.success) {
+        return data.pricing as PriceCalculation;
+      }
+
+      return null;
+    },
+    [api]
+  );
+
+  /**
+   * Purchase custom credit amount
+   */
+  const purchaseCredits = useCallback(
+    async (creditAmount: number, onSuccess?: (credits: CreditBalance) => void) => {
       if (!isRazorpayLoaded()) {
         toast.error('Payment system is loading. Please try again.');
         return;
@@ -155,14 +202,14 @@ export function useRazorpay() {
       try {
         // Step 1: Create order
         const { data, ok } = await api.post('/api/payments/create-order', {
-          packageId,
+          credits: creditAmount,
         });
 
         if (!ok || !data.success) {
           throw new Error(data?.error || 'Failed to create order');
         }
 
-        const { orderId, amount, currency, packageDetails } = data;
+        const { orderId, amount, currency, creditDetails } = data;
 
         // Step 2: Open Razorpay modal
         openRazorpayModal({
@@ -170,14 +217,14 @@ export function useRazorpay() {
           currency,
           order_id: orderId,
           name: 'RecruitKar',
-          description: packageDetails.name,
+          description: `${creditDetails.credits} Credits`,
           image: '/logo.png',
           prefill: {
             name: user?.fullName || '',
             email: user?.primaryEmailAddress?.emailAddress || '',
           },
           theme: {
-            color: '#18181b', // Primary color (dark)
+            color: '#18181b',
           },
           handler: async (response: RazorpayResponse) => {
             // Step 3: Verify payment
@@ -190,7 +237,7 @@ export function useRazorpay() {
 
               if (verifyResult.ok && verifyResult.data.success) {
                 toast.success(
-                  `${verifyResult.data.creditsAdded} credits added successfully!`
+                  `${verifyResult.data.creditsPurchased} credits added successfully!`
                 );
                 onSuccess?.(verifyResult.data.newBalance);
               } else {
@@ -336,39 +383,6 @@ export function useRazorpay() {
   );
 
   /**
-   * Fetch credit packages
-   */
-  const fetchCreditPackages = useCallback(
-    async (category?: string) => {
-      const endpoint = category
-        ? `/api/payments/packages?category=${category}`
-        : '/api/payments/packages';
-
-      const { data, ok } = await api.get(endpoint);
-
-      if (ok && data.success) {
-        return data.packages as CreditPackage[];
-      }
-
-      return [];
-    },
-    [api]
-  );
-
-  /**
-   * Fetch grouped credit packages
-   */
-  const fetchGroupedPackages = useCallback(async () => {
-    const { data, ok } = await api.get('/api/payments/packages/grouped');
-
-    if (ok && data.success) {
-      return data.packages as Record<string, CreditPackage[]>;
-    }
-
-    return {};
-  }, [api]);
-
-  /**
    * Fetch payment history
    */
   const fetchPaymentHistory = useCallback(
@@ -434,7 +448,7 @@ export function useRazorpay() {
     const { data, ok } = await api.get('/api/credits/balance');
 
     if (ok) {
-      return data as CreditBalance;
+      return (data.balance ?? data) as CreditBalance;
     }
 
     return null;
@@ -443,11 +457,11 @@ export function useRazorpay() {
   return {
     isLoading,
     isRazorpayLoaded,
-    purchaseCreditPackage,
+    purchaseCredits,
     subscribeToPlan,
     cancelSubscription,
-    fetchCreditPackages,
-    fetchGroupedPackages,
+    fetchFeatureCosts,
+    calculatePrice,
     fetchPaymentHistory,
     fetchSubscription,
     fetchPlans,

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   useRazorpay,
-  CreditPackage,
   SubscriptionPlan,
   CreditBalance,
+  FeatureCosts,
+  CreditPricing,
 } from '@/lib/hooks/useRazorpay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import {
   Search,
   FileText,
@@ -26,22 +28,19 @@ import {
   Star,
   History,
   Loader2,
+  Coins,
+  Minus,
+  Plus,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  SOURCING: <Search className="h-5 w-5" />,
-  SCREENING: <FileText className="h-5 w-5" />,
-  INTERVIEW: <Video className="h-5 w-5" />,
-  OUTREACH: <Mail className="h-5 w-5" />,
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  SOURCING: 'Candidate Search',
-  SCREENING: 'Resume Screening',
-  INTERVIEW: 'AI Interviews',
-  OUTREACH: 'Email Outreach',
-};
+const FEATURE_INFO = [
+  { key: 'SOURCING' as const, label: 'Candidate Searches', icon: Search, unit: 'search' },
+  { key: 'SCREENING' as const, label: 'Resume Screenings', icon: FileText, unit: 'resume' },
+  { key: 'INTERVIEW' as const, label: 'AI Interviews', icon: Video, unit: 'interview' },
+  { key: 'OUTREACH' as const, label: 'Outreach Emails', icon: Mail, unit: 'email' },
+];
 
 interface Subscription {
   id: string;
@@ -62,38 +61,44 @@ export default function BillingPage() {
   const router = useRouter();
   const {
     isLoading,
-    purchaseCreditPackage,
+    purchaseCredits,
     subscribeToPlan,
     cancelSubscription,
-    fetchGroupedPackages,
+    fetchFeatureCosts,
     fetchPlans,
     fetchSubscription,
     fetchCreditBalance,
   } = useRazorpay();
 
-  const [groupedPackages, setGroupedPackages] = useState<Record<string, CreditPackage[]>>({});
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null);
   const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null);
+  const [featureCosts, setFeatureCosts] = useState<FeatureCosts | null>(null);
+  const [pricing, setPricing] = useState<CreditPricing | null>(null);
   const [loading, setLoading] = useState(true);
-  const [purchasingPackageId, setPurchasingPackageId] = useState<string | null>(null);
+  const [creditAmount, setCreditAmount] = useState(100);
+  const [purchasing, setPurchasing] = useState(false);
   const [upgradingPlanSlug, setUpgradingPlanSlug] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [billingToggle, setBillingToggle] = useState<'monthly' | 'yearly'>('monthly');
 
   // Fetch all data on mount
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const [packagesData, plansData, subData, balanceData] = await Promise.all([
-          fetchGroupedPackages(),
+        const [costsData, plansData, subData, balanceData] = await Promise.all([
+          fetchFeatureCosts(),
           fetchPlans(),
           fetchSubscription(),
           fetchCreditBalance(),
         ]);
 
-        setGroupedPackages(packagesData || {});
+        if (costsData) {
+          setFeatureCosts(costsData.costs);
+          setPricing(costsData.pricing);
+        }
         setPlans(plansData || []);
         if (subData) {
           setSubscription(subData.subscription);
@@ -112,20 +117,48 @@ export default function BillingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle package purchase
-  const handlePurchasePackage = async (pkg: CreditPackage) => {
-    setPurchasingPackageId(pkg.id);
-    await purchaseCreditPackage(pkg.id, (newBalance) => {
+  // Calculate price for current credit amount
+  const priceCalc = useMemo(() => {
+    if (!pricing) return null;
+    const min = pricing.minPurchase;
+    const max = pricing.maxPurchase;
+    if (creditAmount < min || creditAmount > max) return null;
+
+    const tier = pricing.tiers.find(
+      (t) => creditAmount >= t.min && creditAmount <= t.max
+    ) || pricing.tiers[pricing.tiers.length - 1];
+
+    return {
+      totalPrice: creditAmount * tier.pricePerCredit,
+      pricePerCredit: tier.pricePerCredit,
+      tierLabel: tier.label,
+    };
+  }, [creditAmount, pricing]);
+
+  // Feature breakdown for a given credit count
+  const getFeatureBreakdown = (credits: number) => {
+    if (!featureCosts) return [];
+    return FEATURE_INFO.map((f) => ({
+      ...f,
+      count: Math.floor(credits / featureCosts[f.key]),
+      cost: featureCosts[f.key],
+    }));
+  };
+
+  // Handle credit purchase
+  const handlePurchaseCredits = async () => {
+    if (!priceCalc) return;
+    setPurchasing(true);
+    await purchaseCredits(creditAmount, (newBalance) => {
       setCreditBalance(newBalance);
     });
-    setPurchasingPackageId(null);
+    setPurchasing(false);
   };
 
   // Handle plan upgrade
   const handleUpgradePlan = async (planSlug: string) => {
     setUpgradingPlanSlug(planSlug);
     await subscribeToPlan(planSlug, async () => {
-      // Refresh subscription data
       const subData = await fetchSubscription();
       if (subData) {
         setSubscription(subData.subscription);
@@ -168,6 +201,28 @@ export default function BillingPage() {
     });
   };
 
+  // Effective rate for a plan
+  const getEffectiveRate = (plan: SubscriptionPlan) => {
+    if (plan.priceInRupees === 0) return null;
+    return (plan.priceInRupees / plan.credits).toFixed(2);
+  };
+
+  // Best plan recommendation for comparison callout
+  const bestPlan = useMemo(() => {
+    if (!priceCalc || plans.length === 0) return null;
+    const paidPlans = plans.filter((p) => p.priceInRupees > 0);
+    const cheapest = paidPlans.reduce((best, p) => {
+      const rate = p.priceInRupees / p.credits;
+      const bestRate = best.priceInRupees / best.credits;
+      return rate < bestRate ? p : best;
+    }, paidPlans[0]);
+    if (!cheapest) return null;
+    const planRate = cheapest.priceInRupees / cheapest.credits;
+    const savings = Math.round((1 - planRate / priceCalc.pricePerCredit) * 100);
+    if (savings <= 0) return null;
+    return { plan: cheapest, rate: planRate, savings };
+  }, [plans, priceCalc]);
+
   if (loading) {
     return (
       <div className="space-y-8">
@@ -178,15 +233,14 @@ export default function BillingPage() {
           </div>
           <Skeleton className="h-10 w-36" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
-        </div>
+        <Skeleton className="h-32" />
         <Skeleton className="h-96" />
       </div>
     );
   }
+
+  const balance = creditBalance?.credits ?? 0;
+  const breakdown = getFeatureBreakdown(balance);
 
   return (
     <div className="space-y-8">
@@ -204,49 +258,42 @@ export default function BillingPage() {
         </Button>
       </div>
 
-      {/* Credit Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Search Credits</CardTitle>
-            <Search className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{creditBalance?.sourcingCredits ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Candidate searches</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Screening Credits</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{creditBalance?.screeningCredits ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Resume analyses</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Interview Credits</CardTitle>
-            <Video className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{creditBalance?.interviewCredits ?? 0}</div>
-            <p className="text-xs text-muted-foreground">AI voice interviews</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Outreach Credits</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{creditBalance?.outreachCredits ?? 0}</div>
-            <p className="text-xs text-muted-foreground">Emails to send</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Unified Credit Balance */}
+      <Card className="bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5 text-primary" />
+              Your Credits
+            </CardTitle>
+            {balance <= 10 && (
+              <Badge variant="destructive">Low Balance</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-4xl font-bold">{balance.toLocaleString('en-IN')}</div>
+          {featureCosts && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-3">What your credits can do:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {breakdown.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+                  >
+                    <item.icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{item.count.toLocaleString('en-IN')}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Current Subscription */}
       {subscription && (
@@ -281,22 +328,21 @@ export default function BillingPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Monthly Price</p>
-                <p className="font-semibold">{formatPrice(subscription.plan.priceInRupees)}</p>
+                <p className="text-muted-foreground">Price</p>
+                <p className="font-semibold">
+                  {formatPrice(subscription.plan.priceInRupees)}
+                  {(subscription.plan as any).billingCycle === 'yearly' ? '/year' : '/month'}
+                </p>
               </div>
               <div>
-                <p className="text-muted-foreground">Search</p>
-                <p className="font-semibold">{subscription.plan.sourcingCredits}/month</p>
+                <p className="text-muted-foreground">Monthly Credits</p>
+                <p className="font-semibold">{subscription.plan.credits.toLocaleString('en-IN')}/month</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Screening</p>
-                <p className="font-semibold">{subscription.plan.screeningCredits}/month</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Interviews</p>
-                <p className="font-semibold">{subscription.plan.interviewCredits}/month</p>
+                <p className="text-muted-foreground">Billing Cycle</p>
+                <p className="font-semibold capitalize">{(subscription.plan as any).billingCycle || 'monthly'}</p>
               </div>
             </div>
           </CardContent>
@@ -324,36 +370,74 @@ export default function BillingPage() {
 
       <Separator />
 
-      {/* Tabs for Plans and Credit Packs */}
+      {/* Tabs for Plans and Buy Credits */}
       <Tabs defaultValue="plans" className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
-          <TabsTrigger value="credits">Credit Packs</TabsTrigger>
+          <TabsTrigger value="credits">Buy Credits</TabsTrigger>
         </TabsList>
 
         {/* Subscription Plans */}
         <TabsContent value="plans" className="space-y-6">
-          <div>
-            <h3 className="text-xl font-semibold">Choose Your Plan</h3>
-            <p className="text-muted-foreground">
-              Monthly subscription with credits that reset each billing cycle
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold">Choose Your Plan</h3>
+              <p className="text-muted-foreground">
+                {billingToggle === 'yearly' ? 'Annual billing — save 15%' : 'Monthly subscription with credits each billing cycle'}
+              </p>
+            </div>
+            <div className="flex items-center rounded-lg border border-border p-1">
+              <button
+                onClick={() => setBillingToggle('monthly')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  billingToggle === 'monthly'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingToggle('yearly')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  billingToggle === 'yearly'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Annual
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {plans.map((plan) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {plans
+              .filter((plan) => {
+                // Free plan shows in both toggles
+                if (plan.slug === 'free') return billingToggle === 'monthly';
+                // Filter by billing cycle
+                const planCycle = (plan as any).billingCycle || 'monthly';
+                return planCycle === billingToggle;
+              })
+              .map((plan) => {
               const isCurrentPlan = subscription?.plan.slug === plan.slug;
               const isFreePlan = plan.slug === 'free';
-              const isPro = plan.slug === 'pro';
+              const isGrowth = plan.slug === 'growth' || plan.slug === 'growth-annual';
+              const effectiveRate = getEffectiveRate(plan);
+              const planBreakdown = getFeatureBreakdown(plan.credits);
+              const planCycle = (plan as any).billingCycle || 'monthly';
+              const displayPrice = planCycle === 'yearly'
+                ? Math.round(plan.priceInRupees / 12)
+                : plan.priceInRupees;
 
               return (
                 <Card
                   key={plan.id}
-                  className={`relative ${isPro ? 'border-primary shadow-lg' : ''} ${
+                  className={`relative ${isGrowth ? 'border-primary shadow-lg' : ''} ${
                     isCurrentPlan ? 'bg-muted/50' : ''
                   }`}
                 >
-                  {isPro && (
+                  {isGrowth && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                       <Badge className="bg-primary">
                         <Star className="mr-1 h-3 w-3" /> Most Popular
@@ -361,46 +445,52 @@ export default function BillingPage() {
                     </div>
                   )}
                   <CardHeader className="space-y-2">
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
                       {plan.name}
                       {isCurrentPlan && (
-                        <Badge variant="secondary" className="ml-auto">
+                        <Badge variant="secondary" className="ml-auto text-xs">
                           Current
                         </Badge>
                       )}
                     </CardTitle>
                     <div className="space-y-1">
-                      <span className="text-3xl font-bold">{formatPrice(plan.priceInRupees)}</span>
-                      {!isFreePlan && <span className="text-muted-foreground">/month</span>}
+                      <span className="text-2xl font-bold">{formatPrice(displayPrice)}</span>
+                      {!isFreePlan && (
+                        <span className="text-muted-foreground text-sm">
+                          {planCycle === 'yearly' ? '/mo' : '/month'}
+                        </span>
+                      )}
                     </div>
-                    {plan.description && (
-                      <CardDescription>{plan.description}</CardDescription>
+                    {planCycle === 'yearly' && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatPrice(plan.priceInRupees)}/year
+                      </p>
+                    )}
+                    <p className="text-sm font-medium text-primary">
+                      {plan.credits.toLocaleString('en-IN')} credits/month
+                    </p>
+                    {effectiveRate && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatPrice(Number(effectiveRate))}/credit
+                      </p>
                     )}
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <ul className="space-y-2 text-sm">
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
-                        {plan.sourcingCredits} search credits
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
-                        {plan.screeningCredits} screening credits
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
-                        {plan.interviewCredits} interview credits
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-primary" />
-                        {plan.outreachCredits} outreach credits
-                      </li>
+                      {planBreakdown.map((item) => (
+                        <li key={item.key} className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-primary shrink-0" />
+                          <span>
+                            Up to {item.count.toLocaleString('en-IN')} {item.label.toLowerCase()}
+                          </span>
+                        </li>
+                      ))}
                     </ul>
                   </CardContent>
                   <CardFooter>
                     <Button
                       className="w-full"
-                      variant={isPro ? 'default' : 'outline'}
+                      variant={isGrowth ? 'default' : 'outline'}
                       disabled={isCurrentPlan || isLoading || upgradingPlanSlug !== null}
                       onClick={() => handleUpgradePlan(plan.slug)}
                     >
@@ -425,86 +515,197 @@ export default function BillingPage() {
               );
             })}
           </div>
+
+          {/* Custom Plan CTA */}
+          <Card className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm font-semibold">Need a custom plan?</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Looking for volume pricing, dedicated support, or a plan tailored to your team? We&apos;ll build one for you.
+              </p>
+            </div>
+            <a href="mailto:info@recruitkar.com">
+              <Button variant="outline" className="shrink-0">
+                <Mail className="mr-2 h-4 w-4" />
+                Contact Support
+              </Button>
+            </a>
+          </Card>
         </TabsContent>
 
-        {/* Credit Packs */}
+        {/* Buy Credits */}
         <TabsContent value="credits" className="space-y-6">
           <div>
-            <h3 className="text-xl font-semibold">Buy Credit Packs</h3>
+            <h3 className="text-xl font-semibold">Buy Credits</h3>
             <p className="text-muted-foreground">
               Purchase additional credits when you need more. Credits never expire.
             </p>
           </div>
 
-          {Object.entries(groupedPackages || {}).map(([category, packages]) => (
-            <div key={category} className="space-y-4">
-              <h4 className="text-lg font-medium flex items-center gap-2">
-                {CATEGORY_ICONS[category]}
-                {CATEGORY_LABELS[category] || category}
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {packages.map((pkg) => (
-                  <Card key={pkg.id} className={pkg.isFeatured ? 'border-primary' : ''}>
-                    {pkg.isFeatured && (
-                      <div className="absolute -top-2 right-4">
-                        <Badge className="bg-primary">Best Value</Badge>
-                      </div>
-                    )}
-                    <CardHeader className="space-y-1">
-                      <CardTitle className="text-lg">{pkg.name}</CardTitle>
-                      {pkg.description && (
-                        <CardDescription>{pkg.description}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold">{pkg.credits}</span>
-                        <span className="text-muted-foreground">credits</span>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xl font-semibold">{formatPrice(pkg.priceInRupees)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatPrice(pkg.priceInRupees / pkg.credits)} per credit
-                        </p>
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Button
-                        className="w-full"
-                        variant={pkg.isFeatured ? 'default' : 'outline'}
-                        disabled={isLoading || purchasingPackageId !== null}
-                        onClick={() => handlePurchasePackage(pkg)}
-                      >
-                        {purchasingPackageId === pkg.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            Buy Now
-                          </>
-                        )}
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Credit Input & Purchase */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">How many credits do you need?</CardTitle>
+                {pricing && (
+                  <CardDescription>
+                    Min: {pricing.minPurchase} &middot; Max: {pricing.maxPurchase.toLocaleString('en-IN')}
+                  </CardDescription>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Credit amount input */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCreditAmount((prev) => Math.max(pricing?.minPurchase ?? 10, prev - 10))}
+                    disabled={creditAmount <= (pricing?.minPurchase ?? 10)}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    type="number"
+                    value={creditAmount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setCreditAmount(val);
+                    }}
+                    className="text-center text-xl font-bold h-12"
+                    min={pricing?.minPurchase ?? 10}
+                    max={pricing?.maxPurchase ?? 5000}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCreditAmount((prev) => Math.min(pricing?.maxPurchase ?? 5000, prev + 10))}
+                    disabled={creditAmount >= (pricing?.maxPurchase ?? 5000)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
 
-          {Object.keys(groupedPackages || {}).length === 0 && (
-            <Card className="py-12">
-              <CardContent className="flex flex-col items-center justify-center text-center">
-                <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold">No Credit Packs Available</h3>
-                <p className="text-muted-foreground">
-                  Credit packs will be available soon. Check back later!
-                </p>
+                {/* Pricing tiers */}
+                {pricing && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Pricing Tiers</p>
+                    <div className="space-y-1.5">
+                      {pricing.tiers.map((tier) => {
+                        const isActive = creditAmount >= tier.min && creditAmount <= tier.max;
+                        return (
+                          <div
+                            key={tier.label}
+                            className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors ${
+                              isActive
+                                ? 'border-primary bg-primary/5 text-foreground'
+                                : 'border-border text-muted-foreground'
+                            }`}
+                          >
+                            <span>
+                              {tier.min.toLocaleString('en-IN')}&ndash;{tier.max.toLocaleString('en-IN')} credits
+                            </span>
+                            <span className="font-semibold">
+                              {formatPrice(tier.pricePerCredit)}/credit
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price summary */}
+                {priceCalc ? (
+                  <div className="rounded-md border border-border bg-muted/50 p-4 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Rate</span>
+                      <span className="font-medium">
+                        {formatPrice(priceCalc.pricePerCredit)}/credit ({priceCalc.tierLabel})
+                      </span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Total</span>
+                      <span className="text-2xl font-bold">{formatPrice(priceCalc.totalPrice)}</span>
+                    </div>
+                  </div>
+                ) : pricing && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+                    <p className="text-sm text-destructive">
+                      Please enter a value between {pricing.minPurchase} and {pricing.maxPurchase.toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Subscription comparison callout */}
+                {bestPlan && (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+                    <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      With the <span className="font-semibold text-foreground">{bestPlan.plan.name}</span> plan, get{' '}
+                      <span className="font-semibold text-foreground">{bestPlan.plan.credits.toLocaleString('en-IN')} credits/month</span>{' '}
+                      at just {formatPrice(bestPlan.rate)}/credit &mdash;{' '}
+                      <span className="font-semibold text-primary">{bestPlan.savings}% cheaper</span>!
+                    </p>
+                  </div>
+                )}
+
+                {/* Buy button */}
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={!priceCalc || purchasing || isLoading}
+                  onClick={handlePurchaseCredits}
+                >
+                  {purchasing ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : priceCalc ? (
+                    <>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Buy Now &mdash; {formatPrice(priceCalc.totalPrice)}
+                    </>
+                  ) : (
+                    'Enter valid amount'
+                  )}
+                </Button>
               </CardContent>
             </Card>
-          )}
+
+            {/* Right: Feature Costs Reference */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Feature Costs</CardTitle>
+                <CardDescription>
+                  Credits are shared across all features. Use them however you need.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {featureCosts && FEATURE_INFO.map((feature) => (
+                  <div
+                    key={feature.key}
+                    className="flex items-center justify-between rounded-md border border-border p-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center h-10 w-10 rounded-md bg-muted">
+                        <feature.icon className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{feature.label}</p>
+                        <p className="text-xs text-muted-foreground">Per {feature.unit}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold">{featureCosts[feature.key]}</p>
+                      <p className="text-xs text-muted-foreground">credits</p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
