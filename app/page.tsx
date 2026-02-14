@@ -3,6 +3,7 @@ import HeroSection from "@/components/landing/HeroSection";
 import PainPointsSection from "@/components/landing/PainPointsSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import ProductShowcase from "@/components/landing/ProductShowcase";
+import VideoShowcase from "@/components/landing/VideoShowcase";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import PricingSection from "@/components/landing/PricingSection";
@@ -22,6 +23,7 @@ export default function LandingPage() {
       <PainPointsSection />
       <FeaturesSection />
       <ProductShowcase />
+      <VideoShowcase />
       <HowItWorksSection />
       <TestimonialsSection />
       <PricingSection />

@@ -1,4 +1,4 @@
-import { ClerkProvider } from '@clerk/nextjs';
+import { AuthProvider } from '@/lib/auth/auth-context';
 import type { Metadata } from 'next';
 import { Inter, Sora } from 'next/font/google';
 import Script from 'next/script';
@@ -76,9 +76,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
-      <html lang="en" className={`${inter.variable} ${sora.variable}`}>
-        <body className="font-sans antialiased">
+    <html lang="en" className={`${inter.variable} ${sora.variable}`}>
+      <body className="font-sans antialiased">
+        <AuthProvider>
           {children}
           <Toaster />
           {/* Razorpay Checkout Script - loaded globally for payment flows */}
@@ -86,8 +86,8 @@ export default function RootLayout({
             src="https://checkout.razorpay.com/v1/checkout.js"
             strategy="lazyOnload"
           />
-        </body>
-      </html>
-    </ClerkProvider>
+        </AuthProvider>
+      </body>
+    </html>
   );
 }

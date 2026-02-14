@@ -40,7 +40,7 @@ const steps = [
 
 const HowItWorksSection = () => {
   return (
-    <section id="how-it-works" className="py-24 section-light relative overflow-hidden">
+    <section id="how-it-works" className="py-24 section-light relative overflow-hidden scroll-mt-20">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <span className="inline-block px-4 py-2 rounded-full glass-card text-sm font-medium text-hero-muted mb-4">

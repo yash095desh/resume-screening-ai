@@ -34,6 +34,7 @@ import {
   Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useCredits } from '@/lib/credits/credit-context';
 
 const FEATURE_INFO = [
   { key: 'SOURCING' as const, label: 'Candidate Searches', icon: Search, unit: 'search' },
@@ -59,6 +60,7 @@ interface BillingInfo {
 
 export default function BillingPage() {
   const router = useRouter();
+  const { refreshCredits } = useCredits();
   const {
     isLoading,
     purchaseCredits,
@@ -149,8 +151,9 @@ export default function BillingPage() {
   const handlePurchaseCredits = async () => {
     if (!priceCalc) return;
     setPurchasing(true);
-    await purchaseCredits(creditAmount, (newBalance) => {
+    await purchaseCredits(creditAmount, async (newBalance) => {
       setCreditBalance(newBalance);
+      await refreshCredits();
     });
     setPurchasing(false);
   };
@@ -166,6 +169,7 @@ export default function BillingPage() {
       }
       const balanceData = await fetchCreditBalance();
       setCreditBalance(balanceData);
+      await refreshCredits();
     });
     setUpgradingPlanSlug(null);
   };
@@ -183,12 +187,22 @@ export default function BillingPage() {
     setCancelling(false);
   };
 
-  // Format price
+  // Format price (whole numbers for plan prices)
   const formatPrice = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Format rate (up to 2 decimals for per-credit costs)
+  const formatRate = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   };
 
@@ -201,23 +215,31 @@ export default function BillingPage() {
     });
   };
 
-  // Effective rate for a plan
+  // Effective rate for a plan (price per credit)
+  // For annual plans: yearly price / (monthly credits × 12)
+  // For monthly plans: monthly price / monthly credits
   const getEffectiveRate = (plan: SubscriptionPlan) => {
     if (plan.priceInRupees === 0) return null;
-    return (plan.priceInRupees / plan.credits).toFixed(2);
+    const planCycle = (plan as any).billingCycle || 'monthly';
+    const totalCredits = planCycle === 'yearly' ? plan.credits * 12 : plan.credits;
+    return (plan.priceInRupees / totalCredits).toFixed(2);
   };
 
   // Best plan recommendation for comparison callout
+  // Computes effective per-credit rate accounting for billing cycle
   const bestPlan = useMemo(() => {
     if (!priceCalc || plans.length === 0) return null;
     const paidPlans = plans.filter((p) => p.priceInRupees > 0);
+    const getRate = (p: SubscriptionPlan) => {
+      const cycle = (p as any).billingCycle || 'monthly';
+      const totalCredits = cycle === 'yearly' ? p.credits * 12 : p.credits;
+      return p.priceInRupees / totalCredits;
+    };
     const cheapest = paidPlans.reduce((best, p) => {
-      const rate = p.priceInRupees / p.credits;
-      const bestRate = best.priceInRupees / best.credits;
-      return rate < bestRate ? p : best;
+      return getRate(p) < getRate(best) ? p : best;
     }, paidPlans[0]);
     if (!cheapest) return null;
-    const planRate = cheapest.priceInRupees / cheapest.credits;
+    const planRate = getRate(cheapest);
     const savings = Math.round((1 - planRate / priceCalc.pricePerCredit) * 100);
     if (savings <= 0) return null;
     return { plan: cheapest, rate: planRate, savings };
@@ -471,7 +493,7 @@ export default function BillingPage() {
                     </p>
                     {effectiveRate && (
                       <p className="text-xs text-muted-foreground">
-                        {formatPrice(Number(effectiveRate))}/credit
+                        {formatRate(Number(effectiveRate))}/credit
                       </p>
                     )}
                   </CardHeader>
@@ -644,7 +666,7 @@ export default function BillingPage() {
                     <p className="text-sm text-muted-foreground">
                       With the <span className="font-semibold text-foreground">{bestPlan.plan.name}</span> plan, get{' '}
                       <span className="font-semibold text-foreground">{bestPlan.plan.credits.toLocaleString('en-IN')} credits/month</span>{' '}
-                      at just {formatPrice(bestPlan.rate)}/credit &mdash;{' '}
+                      at just {formatRate(bestPlan.rate)}/credit &mdash;{' '}
                       <span className="font-semibold text-primary">{bestPlan.savings}% cheaper</span>!
                     </p>
                   </div>

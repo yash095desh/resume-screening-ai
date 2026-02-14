@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from '@/lib/auth/hooks';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
+import { useCredits } from '@/lib/credits/credit-context';
 
 interface Candidate {
   id: string;
@@ -65,6 +66,7 @@ interface JobGroup {
 
 export default function EnrollmentPage() {
   const { getToken } = useAuth();
+  const { refreshCredits } = useCredits();
   const router = useRouter();
   const params = useParams();
   const sequenceId = params.id as string;
@@ -350,6 +352,8 @@ export default function EnrollmentPage() {
       }
 
       const result = await response.json();
+
+      await refreshCredits();
 
       // Show success and navigate back
       alert(

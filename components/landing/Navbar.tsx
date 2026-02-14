@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/hooks";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,8 +25,9 @@ const Navbar = () => {
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-hero-muted hover:text-hero-text transition-colors">Features</a>
+            <a href="#demo" className="text-hero-muted hover:text-hero-text transition-colors">Demo</a>
             <a href="#how-it-works" className="text-hero-muted hover:text-hero-text transition-colors">How it Works</a>
-            {/* <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors">Pricing</a> */}
+            <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors">Pricing</a>
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -68,8 +69,9 @@ const Navbar = () => {
         {isOpen && (
           <div className="md:hidden mt-4 pb-4 flex flex-col gap-4">
             <a href="#features" className="text-hero-muted hover:text-hero-text transition-colors py-2">Features</a>
+            <a href="#demo" className="text-hero-muted hover:text-hero-text transition-colors py-2">Demo</a>
             <a href="#how-it-works" className="text-hero-muted hover:text-hero-text transition-colors py-2">How it Works</a>
-            {/* <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors py-2">Pricing</a> */}
+            <a href="#pricing" className="text-hero-muted hover:text-hero-text transition-colors py-2">Pricing</a>
             <div className="flex flex-col gap-3 pt-4 border-t border-hero-muted/20">
               {!isLoaded ? (
                 <div className="w-full h-10" />

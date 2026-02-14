@@ -1,27 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { useAuthContext } from '@/lib/auth/auth-context';
+import { useUser } from '@/lib/auth/hooks';
 import { useApiClient } from '@/lib/api/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  User,
-  History,
-  Calendar,
   AlertCircle,
   Coins,
   Search,
   FileText,
   Video,
   Mail,
+  History,
+  Calendar,
+  Check,
+  Loader2,
+  Pencil,
+  Globe,
 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 // Feature costs (must match backend)
 const FEATURE_COSTS = {
@@ -30,6 +37,31 @@ const FEATURE_COSTS = {
   INTERVIEW: 145,
   OUTREACH: 1,
 };
+
+const AVATAR_COLORS = [
+  'bg-blue-600', 'bg-violet-600', 'bg-emerald-600', 'bg-rose-600',
+  'bg-amber-600', 'bg-cyan-600', 'bg-pink-600', 'bg-indigo-600',
+];
+
+function getInitials(name: string | null | undefined, email: string | undefined): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email) return email.slice(0, 2).toUpperCase();
+  return '??';
+}
+
+function getAvatarColor(id: string | undefined): string {
+  if (!id) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+    hash |= 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 interface Plan {
   id: string;
@@ -48,20 +80,54 @@ interface Subscription {
 }
 
 export default function SettingsPage() {
+  const { user: authUser, refreshUser } = useAuthContext();
   const { user, isLoaded: isUserLoaded } = useUser();
   const api = useApiClient();
 
+  // Profile edit state
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Credit/subscription state
   const [credits, setCredits] = useState<number | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
   const [isLoadingSub, setIsLoadingSub] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const avatarColor = getAvatarColor(authUser?.id);
+  const initials = getInitials(authUser?.name, authUser?.email);
+
   useEffect(() => {
     fetchCredits();
     fetchSubscription();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function startEditing() {
+    setEditName(authUser?.name || '');
+    setEditCompany(authUser?.companyName || '');
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const { data, ok } = await api.patch('/api/auth/me', {
+      name: editName,
+      companyName: editCompany,
+    });
+
+    if (ok) {
+      await refreshUser();
+      setEditing(false);
+      toast.success('Profile updated');
+    } else {
+      toast.error(data?.error || 'Failed to update profile');
+    }
+    setSaving(false);
+  }
 
   async function fetchCredits() {
     setIsLoadingCredits(true);
@@ -121,14 +187,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-1">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">Profile</h2>
-        <p className="text-base text-muted-foreground">
-          Your account information and credit overview
-        </p>
-      </div>
-
       {/* Error Alert */}
       {error && (
         <Alert variant="destructive">
@@ -137,35 +195,130 @@ export default function SettingsPage() {
         </Alert>
       )}
 
-      {/* Profile & Plan Card */}
+      {/* Profile Card */}
       <Card className="border-border bg-card p-6">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <User className="h-8 w-8" />
+        <div className="flex items-center justify-between mb-6">
+          <div className="space-y-1">
+            <h3 className="text-xl font-semibold text-foreground">Profile</h3>
+            <p className="text-sm text-muted-foreground">Your personal information</p>
+          </div>
+          {!editing && (
+            <Button variant="outline" size="sm" onClick={startEditing}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Profile
+            </Button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="space-y-6">
+            {/* Name */}
+            <div className="space-y-2">
+              <Label htmlFor="editName">Full name</Label>
+              <Input
+                id="editName"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Your name"
+              />
             </div>
-            <div className="space-y-1">
-              <h2 className="text-xl font-semibold text-foreground">
-                {user?.fullName || 'User'}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {user?.primaryEmailAddress?.emailAddress}
-              </p>
-              {subscription && (
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {subscription.plan.name} Plan
-                  </Badge>
-                  {subscription.plan.priceInRupees > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      ₹{subscription.plan.priceInRupees.toLocaleString('en-IN')}/month
-                    </span>
-                  )}
-                </div>
-              )}
+
+            {/* Company */}
+            <div className="space-y-2">
+              <Label htmlFor="editCompany">
+                Company name <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="editCompany"
+                value={editCompany}
+                onChange={(e) => setEditCompany(e.target.value)}
+                placeholder="Your company"
+              />
+            </div>
+
+            {/* Email (read-only) */}
+            <div className="space-y-2">
+              <Label>Email address</Label>
+              <Input value={authUser?.email || ''} disabled className="bg-muted" />
+              <p className="text-xs text-muted-foreground">Email cannot be changed as it is your login identifier.</p>
+            </div>
+
+            {/* Workspace URL (read-only) */}
+            <div className="space-y-2">
+              <Label>Workspace URL</Label>
+              <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
+                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{authUser?.domainSlug}</span>.recruitkar.com
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">Workspace URL cannot be changed as it is tied to your email infrastructure.</p>
+            </div>
+
+            {/* Save / Cancel */}
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleSave} disabled={saving || !editName.trim()}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+              <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>
+                Cancel
+              </Button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-6">
+            {/* Avatar display */}
+            <Avatar className="h-20 w-20 shrink-0">
+              <AvatarFallback className={`${avatarColor} text-white text-2xl font-semibold`}>
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+
+            {/* Info grid */}
+            <div className="flex-1 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Full Name</p>
+                <p className="text-base text-foreground">{authUser?.name || 'Not set'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Email Address</p>
+                <p className="text-base text-foreground">{authUser?.email}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Company</p>
+                <p className="text-base text-foreground">{authUser?.companyName || 'Not set'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Workspace URL</p>
+                <p className="text-base text-foreground">{authUser?.domainSlug ? `${authUser.domainSlug}.recruitkar.com` : 'Not set'}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Member Since</p>
+                <p className="text-base text-foreground">
+                  {authUser?.createdAt ? formatDate(authUser.createdAt) : 'N/A'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plan</p>
+                <div className="flex items-center gap-2">
+                  {subscription && (
+                    <>
+                      <Badge variant="secondary" className="text-xs">
+                        {subscription.plan.name}
+                      </Badge>
+                      {subscription.plan.priceInRupees > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          ₹{subscription.plan.priceInRupees.toLocaleString('en-IN')}/month
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Credit Overview */}
@@ -291,84 +444,6 @@ export default function SettingsPage() {
               </p>
             </div>
           )}
-        </div>
-      </Card>
-
-      {/* Account Information */}
-      <Card className="border-border bg-card p-6">
-        <div className="space-y-6">
-          <div className="space-y-1">
-            <h3 className="text-xl font-semibold text-foreground">Account Information</h3>
-            <p className="text-sm text-muted-foreground">Your account details and membership</p>
-          </div>
-
-          <Separator className="bg-border" />
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Email */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Email Address
-              </label>
-              <p className="text-base text-foreground">
-                {user?.primaryEmailAddress?.emailAddress}
-              </p>
-            </div>
-
-            {/* Member Since */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Member Since
-              </label>
-              <p className="text-base text-foreground">
-                {user?.createdAt ? formatDate(user.createdAt.toString()) : 'N/A'}
-              </p>
-            </div>
-
-            {/* Plan */}
-            {subscription && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Current Plan
-                  </label>
-                  <p className="text-base text-foreground">{subscription.plan.name} Plan</p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Billing Cycle
-                  </label>
-                  <p className="text-base text-foreground">
-                    {subscription.plan.priceInRupees > 0
-                      ? `₹${subscription.plan.priceInRupees.toLocaleString('en-IN')}/month`
-                      : 'Free'}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Current Period
-                  </label>
-                  <p className="text-base text-foreground">
-                    {formatDate(subscription.currentPeriodStart)} -{' '}
-                    {formatDate(subscription.currentPeriodEnd)}
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Status
-                  </label>
-                  <Badge
-                    variant={subscription.status === 'ACTIVE' ? 'default' : 'secondary'}
-                  >
-                    {subscription.status}
-                  </Badge>
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </Card>
     </div>

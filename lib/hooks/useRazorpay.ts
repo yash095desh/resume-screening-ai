@@ -3,7 +3,7 @@
 
 import { useCallback, useState } from 'react';
 import { useApiClient } from '@/lib/api/client';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from '@/lib/auth/hooks';
 import { toast } from 'sonner';
 
 // Razorpay Checkout options type

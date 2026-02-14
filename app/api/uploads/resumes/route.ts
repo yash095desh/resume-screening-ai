@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { uploadToSupabase } from '@/lib/storage/supabase';
 import { validateFileType, validateFileSize } from '@/lib/utils/file-parser';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth/server';
 
 // Constants
 const MAX_FILES = 500;

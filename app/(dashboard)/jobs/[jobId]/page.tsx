@@ -36,6 +36,7 @@ import { useApiClient } from '@/lib/api/client';
 import QuickEnrollModal from '@/components/outreach/QuickEnrollModal';
 import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
+import { useCredits } from '@/lib/credits/credit-context';
 
 interface Candidate {
   id: string;
@@ -61,6 +62,7 @@ interface Job {
 export default function CandidateRankingsPage() {
   const params = useParamsHook();
   const { get , post } = useApiClient();
+  const { refreshCredits } = useCredits();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +99,7 @@ export default function CandidateRankingsPage() {
 
       if (!res.ok) throw new Error('Processing failed');
 
+      await refreshCredits();
       toast.info( 'Resumes are being analyzed. This may take a few minutes.');
 
       // Poll for updates

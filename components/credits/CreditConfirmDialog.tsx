@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRazorpay } from '@/lib/hooks/useRazorpay';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Coins, AlertCircle, CreditCard, Zap } from 'lucide-react';
+import { useCredits } from '@/lib/credits/credit-context';
 
 export type FeatureType = 'SCREENING' | 'SOURCING' | 'INTERVIEW' | 'OUTREACH';
 
@@ -41,25 +40,12 @@ export function CreditConfirmDialog({
   actionLabel,
   onConfirm,
 }: CreditConfirmDialogProps) {
-  const { fetchCreditBalance } = useRazorpay();
-  const [credits, setCredits] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { credits, loading } = useCredits();
 
   const costPerUnit = FEATURE_COSTS[featureType];
   const totalCost = quantity * costPerUnit;
   const hasEnough = credits !== null && credits >= totalCost;
   const remaining = credits !== null ? credits - totalCost : 0;
-
-  useEffect(() => {
-    if (open) {
-      setLoading(true);
-      fetchCreditBalance().then((data) => {
-        setCredits(data?.credits ?? 0);
-        setLoading(false);
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   function handleConfirm() {
     onOpenChange(false);

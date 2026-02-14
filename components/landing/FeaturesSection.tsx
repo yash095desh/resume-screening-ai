@@ -59,7 +59,7 @@ const solutions = [
 
 const FeaturesSection = () => {
   return (
-    <section id="features" className="py-24 section-medium relative overflow-hidden">
+    <section id="features" className="py-24 section-medium relative overflow-hidden scroll-mt-20">
       {/* Background accents */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-landing-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-landing-accent/5 rounded-full blur-3xl" />

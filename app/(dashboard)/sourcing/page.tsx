@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Plus, 
-  Users, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  Plus,
+  Users,
+  Clock,
+  CheckCircle2,
+  XCircle,
   TrendingUp,
   Loader2,
   AlertCircle,
@@ -20,6 +20,8 @@ import {
   Target,
   Mail
 } from "lucide-react";
+
+export const dynamic = 'force-dynamic';
 
 export default async function SourcingJobsPage() {
   const { userId } = await auth();

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 
 const HeroSection = () => {
   return (
@@ -36,6 +36,12 @@ const HeroSection = () => {
               <Button variant="gradient" size="xl" className="w-full sm:w-auto">
                 Get in Touch
                 <ArrowRight className="w-5 h-5" />
+              </Button>
+            </a>
+            <a href="#demo">
+              <Button variant="heroOutline" size="xl" className="w-full sm:w-auto">
+                <Play className="w-5 h-5" />
+                Watch Demo
               </Button>
             </a>
           </div>

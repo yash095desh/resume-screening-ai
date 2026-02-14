@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth/server';
 import Papa from 'papaparse';
 
 export async function POST(req: Request) {

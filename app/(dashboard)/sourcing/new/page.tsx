@@ -38,9 +38,11 @@ import Link from "next/link";
 import { useApiClient } from "@/lib/api/client";
 import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
 import { CreditConfirmDialog } from "@/components/credits/CreditConfirmDialog";
+import { useCredits } from '@/lib/credits/credit-context';
 
 export default function NewSourcingJobPage() {
   const { post } = useApiClient();
+  const { refreshCredits } = useCredits();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export default function NewSourcingJobPage() {
         throw new Error(data.error || "Failed to create sourcing job");
       }
 
+      await refreshCredits();
       // Redirect to job page
       router.push(`/sourcing/${data.id}`);
     } catch (err: any) {

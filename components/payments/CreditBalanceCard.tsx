@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRazorpay, CreditBalance } from '@/lib/hooks/useRazorpay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Coins, Plus, AlertCircle, Search, FileText, Video, Mail } from 'lucide-react';
+import { useCredits } from '@/lib/credits/credit-context';
 
 // Feature costs (must match backend)
 const FEATURE_COSTS = {
@@ -33,24 +32,10 @@ export function CreditBalanceCard({
   showBuyButton = true,
   lowCreditThreshold = 10,
 }: CreditBalanceCardProps) {
-  const { fetchCreditBalance } = useRazorpay();
-  const [balance, setBalance] = useState<CreditBalance | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { credits: creditBalance, loading } = useCredits();
 
-  useEffect(() => {
-    async function loadBalance() {
-      setLoading(true);
-      const data = await fetchCreditBalance();
-      setBalance(data);
-      setLoading(false);
-    }
-
-    loadBalance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const credits = balance?.credits ?? 0;
-  const isLow = balance !== null && credits <= lowCreditThreshold;
+  const credits = creditBalance ?? 0;
+  const isLow = creditBalance !== null && credits <= lowCreditThreshold;
 
   // Compact variant — single line for sidebar
   if (variant === 'compact') {

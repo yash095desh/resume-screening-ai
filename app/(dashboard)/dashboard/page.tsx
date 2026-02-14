@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth/server';
 import type { Metadata } from 'next';
 import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 

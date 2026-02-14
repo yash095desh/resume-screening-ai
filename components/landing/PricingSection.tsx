@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Check, Zap, Building2, Crown, Sparkles, Rocket, Mail } from "lucide-react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/hooks";
 import Link from "next/link";
 
 const PLANS = [
@@ -133,7 +133,7 @@ const PricingSection = () => {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
 
   return (
-    <section id="pricing" className="py-24 section-light relative overflow-hidden">
+    <section id="pricing" className="py-24 section-light relative overflow-hidden scroll-mt-20">
       {/* Background elements */}
       <div className="absolute top-1/4 right-0 w-96 h-96 bg-landing-primary/5 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 left-0 w-80 h-80 bg-landing-accent/5 rounded-full blur-3xl" />
@@ -205,7 +205,7 @@ const PricingSection = () => {
                 {/* Popular Badge */}
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="px-4 py-1 rounded-full bg-gradient-to-r from-landing-primary to-landing-accent text-white text-sm font-medium whitespace-nowrap">
+                    <span className="px-4 py-1 rounded-full bg-linear-to-r from-landing-primary to-landing-accent text-white text-sm font-medium whitespace-nowrap">
                       Best Value
                     </span>
                   </div>
@@ -213,7 +213,7 @@ const PricingSection = () => {
 
                 {/* Plan Header */}
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-landing-primary/20 to-landing-accent/20 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-linear-to-br from-landing-primary/20 to-landing-accent/20 flex items-center justify-center">
                     <plan.icon className="w-4 h-4 text-landing-primary" />
                   </div>
                   <h3 className="text-base font-bold text-hero-text font-display">
@@ -246,7 +246,7 @@ const PricingSection = () => {
                 <ul className="space-y-2 mb-5 flex-1">
                   {plan.features.map((feature, featureIndex) => (
                     <li key={featureIndex} className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-landing-primary flex-shrink-0 mt-0.5" />
+                      <Check className="w-4 h-4 text-landing-primary shrink-0 mt-0.5" />
                       <span className="text-sm text-hero-muted">{feature}</span>
                     </li>
                   ))}

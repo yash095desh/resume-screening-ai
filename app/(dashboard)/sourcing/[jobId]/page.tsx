@@ -54,7 +54,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useApiClient } from "@/lib/api/client";
 import { fetchEventSource } from "@microsoft/fetch-event-source"
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/hooks";
 import QuickEnrollModal from '@/components/outreach/QuickEnrollModal';
 import { toast } from "sonner";
 

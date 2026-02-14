@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Briefcase, Users, Calendar } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { auth } from '@clerk/nextjs/server';
+import { auth } from '@/lib/auth/server';
 
 export default async function JobsPage() {
   const { userId } = await auth();

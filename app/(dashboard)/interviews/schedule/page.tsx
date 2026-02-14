@@ -17,6 +17,7 @@ import { Calendar, Mail, Users, Briefcase, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
+import { useCredits } from '@/lib/credits/credit-context';
 
 interface Candidate {
   id: string;
@@ -52,6 +53,7 @@ interface ReminderTemplate {
 
 export default function ScheduleInterviewsPage() {
   const api = useApiClient();
+  const { refreshCredits } = useCredits();
   const [activeTab, setActiveTab] = useState<'screening' | 'sourcing'>('screening');
 
   // Data states
@@ -266,6 +268,8 @@ export default function ScheduleInterviewsPage() {
 
       const results = await Promise.all(promises);
       const successCount = results.filter(r => r.ok).length;
+
+      if (successCount > 0) await refreshCredits();
 
       alert(`Successfully scheduled ${successCount}/${selected.length} interviews!`);
 
