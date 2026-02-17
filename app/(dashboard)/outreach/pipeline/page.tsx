@@ -112,8 +112,11 @@ function PipelinePageContent() {
 
       if (screeningResponse.ok) {
         const data = await screeningResponse.json();
-        const screeningJobs = (data.jobs || []).map((job: any) => ({
+        // Backend returns array directly for screening jobs (not wrapped in { jobs: [] })
+        const jobsArray = Array.isArray(data) ? data : (data.jobs || []);
+        const screeningJobs = jobsArray.map((job: any) => ({
           ...job,
+          totalCandidates: job._count?.candidates ?? job.totalCandidates ?? 0,
           source: 'SCREENING',
         }));
         allJobs.push(...screeningJobs);
@@ -686,7 +689,7 @@ function CandidateListView({
                     {candidate.sequence.name}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Step {candidate.sequence.currentStep}/{candidate.sequence.totalSteps}
+                    Step {Math.min(candidate.sequence.currentStep, candidate.sequence.totalSteps)}/{candidate.sequence.totalSteps}
                   </p>
                 </div>
               )}
@@ -771,7 +774,7 @@ function CandidateListView({
                           {candidate.sequence.name}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Step {candidate.sequence.currentStep}/{candidate.sequence.totalSteps}
+                          Step {Math.min(candidate.sequence.currentStep, candidate.sequence.totalSteps)}/{candidate.sequence.totalSteps}
                         </p>
                       </div>
                     ) : (

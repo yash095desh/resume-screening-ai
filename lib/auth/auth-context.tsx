@@ -15,6 +15,12 @@ export interface AuthUser {
   emailVerified: boolean;
   emailDomainVerified: boolean;
   createdAt: string;
+  plan: {
+    slug: string;
+    name: string;
+    credits: number;
+  } | null;
+  mailboxCount: number;
 }
 
 interface AuthContextValue {
@@ -23,7 +29,7 @@ interface AuthContextValue {
   isLoaded: boolean;
   isSignedIn: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsVerification?: boolean; needsPasswordReset?: boolean; email?: string }>;
-  signup: (data: { name: string; email: string; password: string; companyName?: string; domainSlug: string }) => Promise<{ success: boolean; error?: string; email?: string }>;
+  signup: (data: { name: string; email: string; password: string; companyName?: string }) => Promise<{ success: boolean; error?: string; email?: string }>;
   logout: () => void;
   getToken: () => Promise<string | null>;
   refreshUser: () => Promise<void>;
@@ -112,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setAuth]);
 
-  const signup = useCallback(async (signupData: { name: string; email: string; password: string; companyName?: string; domainSlug: string }) => {
+  const signup = useCallback(async (signupData: { name: string; email: string; password: string; companyName?: string }) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',

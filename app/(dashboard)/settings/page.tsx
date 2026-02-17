@@ -25,7 +25,6 @@ import {
   Check,
   Loader2,
   Pencil,
-  Globe,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -243,18 +242,6 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">Email cannot be changed as it is your login identifier.</p>
             </div>
 
-            {/* Workspace URL (read-only) */}
-            <div className="space-y-2">
-              <Label>Workspace URL</Label>
-              <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
-                <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
-                <span className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{authUser?.domainSlug}</span>.recruitkar.com
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">Workspace URL cannot be changed as it is tied to your email infrastructure.</p>
-            </div>
-
             {/* Save / Cancel */}
             <div className="flex gap-3 pt-2">
               <Button onClick={handleSave} disabled={saving || !editName.trim()}>
@@ -288,10 +275,6 @@ export default function SettingsPage() {
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Company</p>
                 <p className="text-base text-foreground">{authUser?.companyName || 'Not set'}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Workspace URL</p>
-                <p className="text-base text-foreground">{authUser?.domainSlug ? `${authUser.domainSlug}.recruitkar.com` : 'Not set'}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Member Since</p>

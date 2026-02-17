@@ -321,7 +321,10 @@ export default function SequenceDetailsPage() {
         </Alert>
       )}
 
-      {/* Stats Cards */}
+      {/* Stats Cards (All-time) */}
+      <div className="flex items-center gap-2 mb-2">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">All-time Stats</h2>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card className="p-6 space-y-2">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -448,7 +451,7 @@ export default function SequenceDetailsPage() {
                     </TableCell>
                     <TableCell>{getStatusBadge(cs.status)}</TableCell>
                     <TableCell className="text-center">
-                      {cs.currentStep} / {sequence.totalSteps}
+                      {Math.min(cs.currentStep, sequence.totalSteps)} / {sequence.totalSteps}
                     </TableCell>
                     <TableCell>
                       {lastEmail ? (

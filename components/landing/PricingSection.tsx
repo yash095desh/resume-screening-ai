@@ -21,7 +21,7 @@ const PLANS = [
       "Screen up to 200 resumes",
       "Source up to 33 candidates",
       "1 AI voice interview",
-      "Email outreach included",
+      "No email outreach",
       "Community support",
     ],
     ctaLoggedOut: "Get Started Free",
@@ -44,7 +44,8 @@ const PLANS = [
       "Screen up to 400 resumes",
       "Source up to 66 candidates",
       "2 AI voice interviews",
-      "Unlimited email sequences",
+      "Up to 400 outreach emails",
+      "1 dedicated sending mailbox",
       "Priority email support",
     ],
     ctaLoggedOut: "Get Started",
@@ -67,7 +68,8 @@ const PLANS = [
       "Screen up to 1,500 resumes",
       "Source up to 250 candidates",
       "10 AI voice interviews",
-      "Unused credits carry over",
+      "Up to 1,500 outreach emails",
+      "2 dedicated sending mailboxes",
       "Priority support + onboarding",
     ],
     ctaLoggedOut: "Get Started",
@@ -90,7 +92,8 @@ const PLANS = [
       "Screen up to 5,000 resumes",
       "Source up to 833 candidates",
       "34 AI voice interviews",
-      "Unused credits carry over",
+      "Up to 5,000 outreach emails",
+      "6 dedicated sending mailboxes",
       "Dedicated account manager",
     ],
     ctaLoggedOut: "Get Started",
@@ -113,7 +116,8 @@ const PLANS = [
       "Screen up to 15,000 resumes",
       "Source up to 2,500 candidates",
       "103 AI voice interviews",
-      "Unused credits carry over",
+      "Up to 15,000 outreach emails",
+      "17 dedicated sending mailboxes",
       "Custom onboarding + SLA",
     ],
     ctaLoggedOut: "Get Started",
@@ -181,7 +185,7 @@ const PricingSection = () => {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-5 max-w-7xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 max-w-7xl mx-auto">
           {PLANS.map((plan) => {
             const isFreePlan = plan.slug === "free";
             const price = billing === 'annual' ? plan.annualMonthlyPrice : plan.monthlyPrice;
@@ -196,7 +200,7 @@ const PricingSection = () => {
             return (
               <div
                 key={plan.slug}
-                className={`relative rounded-2xl p-5 flex flex-col ${
+                className={`relative rounded-2xl p-4 flex flex-col ${
                   plan.popular
                     ? "glass-card border-2 border-landing-primary/50 lg:scale-105"
                     : "glass-card"
@@ -212,42 +216,42 @@ const PricingSection = () => {
                 )}
 
                 {/* Plan Header */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-linear-to-br from-landing-primary/20 to-landing-accent/20 flex items-center justify-center">
-                    <plan.icon className="w-4 h-4 text-landing-primary" />
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded-lg bg-linear-to-br from-landing-primary/20 to-landing-accent/20 flex items-center justify-center">
+                    <plan.icon className="w-3.5 h-3.5 text-landing-primary" />
                   </div>
-                  <h3 className="text-base font-bold text-hero-text font-display">
+                  <h3 className="text-sm font-bold text-hero-text font-display">
                     {plan.name}
                   </h3>
                 </div>
 
                 {/* Price */}
-                <div className="mb-3">
+                <div className="mb-2">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-hero-muted text-base">₹</span>
-                    <span className="text-2xl font-bold text-hero-text font-display">
+                    <span className="text-hero-muted text-sm">₹</span>
+                    <span className="text-xl font-bold text-hero-text font-display">
                       {formatPrice(price)}
                     </span>
                   </div>
-                  <span className="text-xs text-hero-muted">
+                  <span className="text-[11px] text-hero-muted">
                     {isFreePlan ? 'forever' : billing === 'annual' ? '/mo, billed annually' : 'per month'}
                   </span>
                   {billing === 'annual' && !isFreePlan && (
-                    <p className="text-xs text-hero-muted mt-0.5">
+                    <p className="text-[11px] text-hero-muted mt-0.5">
                       ₹{formatPrice(plan.annualTotalPrice)}/year
                     </p>
                   )}
                 </div>
 
                 {/* Description */}
-                <p className="text-sm text-hero-muted mb-4">{plan.description}</p>
+                <p className="text-xs text-hero-muted mb-3">{plan.description}</p>
 
                 {/* Features */}
-                <ul className="space-y-2 mb-5 flex-1">
+                <ul className="space-y-1.5 mb-4 flex-1">
                   {plan.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-start gap-2">
-                      <Check className="w-4 h-4 text-landing-primary shrink-0 mt-0.5" />
-                      <span className="text-sm text-hero-muted">{feature}</span>
+                    <li key={featureIndex} className="flex items-start gap-1.5">
+                      <Check className="w-3 h-3 text-landing-primary shrink-0 mt-0.5" />
+                      <span className="text-xs text-hero-muted">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -256,8 +260,8 @@ const PricingSection = () => {
                 {isSignedIn && isFreePlan ? (
                   <Button
                     variant="outline"
-                    size="lg"
-                    className="w-full mt-auto"
+                    size="sm"
+                    className="w-full mt-auto text-xs"
                     disabled
                   >
                     Current Plan
@@ -266,8 +270,8 @@ const PricingSection = () => {
                   <Link href={href}>
                     <Button
                       variant={plan.popular ? "gradient" as any : "outline"}
-                      size="lg"
-                      className="w-full mt-auto"
+                      size="sm"
+                      className="w-full mt-auto text-xs"
                     >
                       {isSignedIn ? plan.ctaLoggedIn : plan.ctaLoggedOut}
                     </Button>

@@ -40,8 +40,8 @@ export default async function SourcingJobsPage() {
       completedAt: true,
       errorMessage: true,
       _count: {
-        select: { 
-          candidates: true 
+        select: {
+          candidates: true
         },
       },
       candidates: {
@@ -73,15 +73,15 @@ export default async function SourcingJobsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">
+          <h2 className="text-3xl font-bold text-foreground">
             AI Sourcing Jobs
           </h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-muted-foreground mt-1">
             Automatically find and score top candidates for your roles
           </p>
         </div>
         <Link href="/sourcing/new">
-          <Button size="lg" className="bg-purple-600 hover:bg-purple-700">
+          <Button size="lg" className="bg-primary hover:bg-primary/90">
             <Plus className="w-4 h-4 mr-2" />
             New Sourcing Job
           </Button>
@@ -137,7 +137,7 @@ export default async function SourcingJobsPage() {
           <CardContent>
             <div className="text-2xl font-bold">{candidatesWithContact}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {totalCandidates > 0 
+              {totalCandidates > 0
                 ? `${Math.round((candidatesWithContact / totalCandidates) * 100)}% of total`
                 : "0%"}
             </p>
@@ -149,18 +149,18 @@ export default async function SourcingJobsPage() {
       {jobs.length === 0 ? (
         <Card className="border-2 border-dashed">
           <CardContent className="py-16 text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mb-4">
-              <Users className="w-8 h-8 text-purple-600" />
+            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Users className="w-8 h-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               No sourcing jobs yet
             </h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Create your first sourcing job to automatically find and score candidates
               matching your job description
             </p>
             <Link href="/sourcing/new">
-              <Button size="lg" className="bg-purple-600 hover:bg-purple-700">
+              <Button size="lg" className="bg-primary hover:bg-primary/90">
                 <Plus className="w-4 h-4 mr-2" />
                 Create First Job
               </Button>
@@ -179,20 +179,20 @@ export default async function SourcingJobsPage() {
 
             return (
               <Link key={job.id} href={`/sourcing/${job.id}`}>
-                <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-purple-500 mb-1">
+                <Card className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-primary mb-1">
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between gap-4">
                       {/* Left Section */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-3">
                           <Avatar className="h-12 w-12">
-                            <AvatarFallback className="bg-linear-to-br from-purple-500 to-blue-500 text-white font-bold">
+                            <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                               {job.title.charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-lg truncate">{job.title}</h3>
-                            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-600">
+                            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3.5 h-3.5" />
                                 {new Date(job.createdAt).toLocaleDateString('en-US', {
@@ -216,17 +216,17 @@ export default async function SourcingJobsPage() {
                         {/* Stats Row */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Candidates</p>
+                            <p className="text-xs text-muted-foreground mb-1">Candidates</p>
                             <div className="flex items-center gap-1.5">
-                              <Users className="w-4 h-4 text-gray-400" />
+                              <Users className="w-4 h-4 text-muted-foreground" />
                               <span className="font-semibold">{job._count.candidates}</span>
                             </div>
                           </div>
 
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Avg Score</p>
+                            <p className="text-xs text-muted-foreground mb-1">Avg Score</p>
                             <div className="flex items-center gap-1.5">
-                              <TrendingUp className="w-4 h-4 text-gray-400" />
+                              <TrendingUp className="w-4 h-4 text-muted-foreground" />
                               <span className="font-semibold">
                                 {avgJobScore > 0 ? avgJobScore : "—"}
                               </span>
@@ -234,17 +234,17 @@ export default async function SourcingJobsPage() {
                           </div>
 
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Contact Info</p>
+                            <p className="text-xs text-muted-foreground mb-1">Contact Info</p>
                             <div className="flex items-center gap-1.5">
-                              <Mail className="w-4 h-4 text-gray-400" />
+                              <Mail className="w-4 h-4 text-muted-foreground" />
                               <span className="font-semibold">{withContact}</span>
                             </div>
                           </div>
 
                           <div>
-                            <p className="text-xs text-gray-600 mb-1">Progress</p>
+                            <p className="text-xs text-muted-foreground mb-1">Progress</p>
                             <div className="flex items-center gap-1.5">
-                              <Target className="w-4 h-4 text-gray-400" />
+                              <Target className="w-4 h-4 text-muted-foreground" />
                               <span className="font-semibold">
                                 {job.profilesScored}/{job.totalProfilesFound}
                               </span>
@@ -266,16 +266,16 @@ export default async function SourcingJobsPage() {
                       {/* Right Section - Status */}
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge status={job.status} />
-                        
+
                         {job.status === "COMPLETED" && avgJobScore > 0 && (
-                          <Badge 
+                          <Badge
                             variant="secondary"
                             className={
-                              avgJobScore >= 80 
-                                ? "bg-green-100 text-green-700"
+                              avgJobScore >= 80
+                                ? "bg-primary/10 text-primary"
                                 : avgJobScore >= 60
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-red-100 text-red-700"
+                                ? "bg-secondary text-secondary-foreground"
+                                : "bg-destructive/10 text-destructive"
                             }
                           >
                             {avgJobScore >= 80 ? "Excellent" : avgJobScore >= 60 ? "Good" : "Fair"} Match
@@ -283,7 +283,7 @@ export default async function SourcingJobsPage() {
                         )}
 
                         {job.status !== "COMPLETED" && job.status !== "FAILED" && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
                             {Math.round((job.profilesScored / (job.totalProfilesFound || 1)) * 100)}%
                           </Badge>
                         )}
@@ -302,40 +302,40 @@ export default async function SourcingJobsPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const variants: Record<string, { color: string; label: string; icon: any }> = {
-    CREATED: { 
-      color: "bg-gray-100 text-gray-700 border-gray-300", 
-      label: "Created", 
-      icon: Clock 
+    CREATED: {
+      color: "bg-muted text-muted-foreground border-border",
+      label: "Created",
+      icon: Clock
     },
-    FORMATTING_JD: { 
-      color: "bg-blue-100 text-blue-700 border-blue-300", 
-      label: "Formatting", 
-      icon: Loader2 
+    FORMATTING_JD: {
+      color: "bg-secondary text-secondary-foreground border-border",
+      label: "Formatting",
+      icon: Loader2
     },
-    SEARCHING_PROFILES: { 
-      color: "bg-blue-100 text-blue-700 border-blue-300", 
-      label: "Searching", 
-      icon: Loader2 
+    SEARCHING_PROFILES: {
+      color: "bg-secondary text-secondary-foreground border-border",
+      label: "Searching",
+      icon: Loader2
     },
-    SCRAPING_PROFILES: { 
-      color: "bg-purple-100 text-purple-700 border-purple-300", 
-      label: "Scraping", 
-      icon: Loader2 
+    SCRAPING_PROFILES: {
+      color: "bg-secondary text-secondary-foreground border-border",
+      label: "Scraping",
+      icon: Loader2
     },
-    SCORING: { 
-      color: "bg-yellow-100 text-yellow-700 border-yellow-300", 
-      label: "Scoring", 
-      icon: Loader2 
+    SCORING: {
+      color: "bg-secondary text-secondary-foreground border-border",
+      label: "Scoring",
+      icon: Loader2
     },
-    COMPLETED: { 
-      color: "bg-green-100 text-green-700 border-green-300", 
-      label: "Completed", 
-      icon: CheckCircle2 
+    COMPLETED: {
+      color: "bg-primary/10 text-primary border-primary/20",
+      label: "Completed",
+      icon: CheckCircle2
     },
-    FAILED: { 
-      color: "bg-red-100 text-red-700 border-red-300", 
-      label: "Failed", 
-      icon: XCircle 
+    FAILED: {
+      color: "bg-destructive/10 text-destructive border-destructive/20",
+      label: "Failed",
+      icon: XCircle
     },
   };
 

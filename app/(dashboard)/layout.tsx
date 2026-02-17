@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import {
-  LayoutDashboard, Settings, Upload, Search, Video, Mail,
-  CheckCircle, Inbox, ListChecks, ChevronDown, ChevronRight,
-  LogOut, Loader2,
+  LayoutDashboard, Settings, Briefcase, Search, Video, Calendar,
+  BarChart3, Inbox, ListChecks, ChevronDown, ChevronRight,
+  LogOut, Loader2, GitBranch, FileText,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { CreditBalanceCard } from '@/components/payments/CreditBalanceCard';
 import { CreditProvider } from '@/lib/credits/credit-context';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
   AlertDialogFooter, AlertDialogTitle, AlertDialogDescription,
@@ -61,14 +63,17 @@ export default function DashboardLayout({
   };
 
   const linkClass = (href: string) =>
-    `flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
+    `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors ${
       isActive(href)
-        ? 'bg-primary/10 text-primary font-medium'
-        : 'hover:bg-muted'
+        ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary -ml-px'
+        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
     }`;
 
   const initials = useMemo(() => getInitials(user?.name, user?.email), [user?.name, user?.email]);
   const avatarColor = useMemo(() => getAvatarColor(user?.id), [user?.id]);
+
+  const planSlug = user?.plan?.slug;
+  const isFreePlan = !planSlug || planSlug === 'free';
 
   // Redirect to sign-in if auth is loaded but user is not signed in
   useEffect(() => {
@@ -91,21 +96,20 @@ export default function DashboardLayout({
     <div className="h-screen overflow-hidden bg-background">
       {/* Navbar */}
       <nav className="border-b border-border bg-card">
-        <div className="mx-auto flex h-16 max-w-8xl items-center justify-between px-4">
+        <div className="mx-auto flex h-14 items-center justify-between px-4">
           <Link href="/" className="flex items-center">
             <img
               src="/logo.png"
               alt="RecruitKar"
-              className="h-10 w-auto object-contain"
+              className="h-9 w-auto object-contain"
             />
           </Link>
-          {/* Header avatar — click navigates to settings/profile */}
           <Link
             href="/settings"
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted transition-colors"
           >
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className={`${avatarColor} text-white text-xs font-semibold`}>
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className={`${avatarColor} text-white text-[10px] font-semibold`}>
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -113,123 +117,143 @@ export default function DashboardLayout({
         </div>
       </nav>
 
-      <div className="mx-auto flex h-[calc(100vh-64px)]">
+      <div className="flex h-[calc(100vh-56px)]">
         {/* Sidebar */}
-        <aside className="w-64 border-r border-border bg-card h-full flex flex-col">
-          <nav className="flex-1 overflow-y-auto scrollbar-thin space-y-1 p-4">
+        <aside className="w-60 border-r border-border bg-card h-full flex flex-col">
+          {/* Scrollable nav */}
+          <nav className="flex-1 overflow-y-auto scrollbar-thin space-y-1 px-3 py-4">
             <Link href="/dashboard" className={linkClass('/dashboard')}>
-              <LayoutDashboard size={20} />
+              <LayoutDashboard size={18} />
               <span>Dashboard</span>
             </Link>
+            <Link href="/jobs" className={linkClass('/jobs')}>
+              <Briefcase size={18} />
+              <span>Jobs</span>
+            </Link>
+            <Link href="/sourcing" className={linkClass('/sourcing')}>
+              <Search size={18} />
+              <span>Sourcing</span>
+              <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                NEW
+              </span>
+            </Link>
 
-            {/* Resume Screening Section */}
-            <div className="pt-4">
-              <p className="text-xs font-semibold text-muted-foreground px-4 mb-2">
-                RESUME SCREENING
-              </p>
-              <Link href="/jobs" className={linkClass('/jobs')}>
-                <Upload size={20} />
-                <span>Jobs</span>
-              </Link>
-            </div>
-
-            {/* AI Sourcing Section */}
-            <div className="pt-4">
-              <p className="text-xs font-semibold text-muted-foreground px-4 mb-2">
-                AI SOURCING
-              </p>
-              <Link href="/sourcing" className={linkClass('/sourcing')}>
-                <Search size={20} />
-                <span>Sourcing Jobs</span>
-                <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                  NEW
-                </span>
-              </Link>
-            </div>
+            <Separator className="my-3" />
 
             {/* Outreach Section */}
-            <div className="pt-4">
-              <Collapsible open={outreachOpen} onOpenChange={setOutreachOpen}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-4 py-2 hover:bg-muted transition-colors">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    OUTREACH
-                  </p>
-                  {outreachOpen ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            <Collapsible open={outreachOpen} onOpenChange={setOutreachOpen}>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 hover:bg-muted transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Outreach
+                  </span>
+                  {isFreePlan && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal text-muted-foreground">
+                      PRO
+                    </Badge>
                   )}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1 mt-1">
-                  <Link href="/outreach/sequences" className={linkClass('/outreach/sequences')}>
-                    <ListChecks size={20} />
-                    <span>Sequences</span>
-                  </Link>
-                  <Link href="/outreach/pipeline" className={linkClass('/outreach/pipeline')}>
-                    <CheckCircle size={20} />
-                    <span>Pipeline</span>
-                  </Link>
-                  <Link href="/outreach/inbox" className={linkClass('/outreach/inbox')}>
-                    <Inbox size={20} />
-                    <span>Inbox</span>
-                  </Link>
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
+                </div>
+                {outreachOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                <Link href="/outreach/sequences" className={linkClass('/outreach/sequences')}>
+                  <ListChecks size={18} />
+                  <span>Sequences</span>
+                </Link>
+                <Link href="/outreach/pipeline" className={linkClass('/outreach/pipeline')}>
+                  <GitBranch size={18} />
+                  <span>Pipeline</span>
+                </Link>
+                <Link href="/outreach/inbox" className={linkClass('/outreach/inbox')}>
+                  <Inbox size={18} />
+                  <span>Inbox</span>
+                </Link>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Interviews Section */}
-            <div className="pt-4">
-              <Collapsible open={interviewsOpen} onOpenChange={setInterviewsOpen}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-4 py-2 hover:bg-muted transition-colors">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    INTERVIEWS
-                  </p>
-                  {interviewsOpen ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1 mt-1">
-                  <Link href="/interviews/schedule" className={linkClass('/interviews/schedule')}>
-                    <Mail size={20} />
-                    <span>Schedule</span>
-                  </Link>
-                  <Link href="/interviews/tracking" className={linkClass('/interviews/tracking')}>
-                    <Video size={20} />
-                    <span>Tracking</span>
-                  </Link>
-                  <Link href="/interviews/results" className={linkClass('/interviews/results')}>
-                    <CheckCircle size={20} />
-                    <span>Results</span>
-                  </Link>
-                </CollapsibleContent>
-              </Collapsible>
+            <Collapsible open={interviewsOpen} onOpenChange={setInterviewsOpen}>
+              <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 hover:bg-muted transition-colors">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Interviews
+                </span>
+                {interviewsOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                <Link href="/interviews/schedule" className={linkClass('/interviews/schedule')}>
+                  <Calendar size={18} />
+                  <span>Schedule</span>
+                </Link>
+                <Link href="/interviews/tracking" className={linkClass('/interviews/tracking')}>
+                  <Video size={18} />
+                  <span>Tracking</span>
+                </Link>
+                <Link href="/interviews/results" className={linkClass('/interviews/results')}>
+                  <BarChart3 size={18} />
+                  <span>Results</span>
+                </Link>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator className="my-3" />
+
+            <Link href="/templates" className={linkClass('/templates')}>
+              <FileText size={18} />
+              <span>Templates</span>
+            </Link>
+          </nav>
+
+          {/* Pinned bottom section */}
+          <div className="border-t border-border">
+            {/* User info + credits */}
+            <div className="px-3 py-3 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  <AvatarFallback className={`${avatarColor} text-white text-xs font-semibold`}>
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                </div>
+                {user?.plan && (
+                  <Badge
+                    variant={isFreePlan ? 'secondary' : 'default'}
+                    className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0"
+                  >
+                    {user.plan.name}
+                  </Badge>
+                )}
+              </div>
+
+              <CreditBalanceCard variant="compact" />
             </div>
 
-            {/* Templates */}
-            <div className="pt-4">
-              <p className="text-xs font-semibold text-muted-foreground px-4 mb-2">
-                CONFIGURATION
-              </p>
-              <Link href="/templates" className={linkClass('/templates')}>
-                <Mail size={20} />
-                <span>Email Templates</span>
-              </Link>
-            </div>
-
-            {/* Settings */}
-            <div className="pt-4">
-              <Link href="/settings" className={linkClass('/settings')}>
-                <Settings size={20} />
+            {/* Settings + Sign Out */}
+            <div className="border-t border-border px-3 py-2 flex items-center gap-1">
+              <Link
+                href="/settings"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Settings size={14} />
                 <span>Settings</span>
               </Link>
 
-              {/* Sign Out */}
+              <div className="h-4 w-px bg-border" />
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <button className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors mt-1">
-                    <LogOut size={20} />
+                  <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                    <LogOut size={14} />
                     <span>Sign Out</span>
                   </button>
                 </AlertDialogTrigger>
@@ -252,11 +276,6 @@ export default function DashboardLayout({
                 </AlertDialogContent>
               </AlertDialog>
             </div>
-          </nav>
-
-          {/* Credit Balance - bottom of sidebar */}
-          <div className="border-t border-border p-4">
-            <CreditBalanceCard variant="compact" />
           </div>
         </aside>
 

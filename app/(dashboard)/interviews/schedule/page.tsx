@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,11 +13,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, Mail, Users, Briefcase, Loader2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Mail, Users, Briefcase, Loader2, ArrowLeft } from 'lucide-react';
 import { CreditCostBadge } from '@/components/credits/CreditCostBadge';
 import { CreditConfirmDialog } from '@/components/credits/CreditConfirmDialog';
 import { useCredits } from '@/lib/credits/credit-context';
+
+interface Job {
+  id: string;
+  title: string;
+  createdAt: string;
+  source: 'SCREENING' | 'SOURCING';
+  totalCandidates: number;
+}
 
 interface Candidate {
   id: string;
@@ -56,22 +63,25 @@ export default function ScheduleInterviewsPage() {
   const { refreshCredits } = useCredits();
   const [activeTab, setActiveTab] = useState<'screening' | 'sourcing'>('screening');
 
-  // Data states
-  const [screeningCandidates, setScreeningCandidates] = useState<Candidate[]>([]);
-  const [sourcingCandidates, setSourcingCandidates] = useState<Candidate[]>([]);
+  // Jobs
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+
+  // Drill-in state
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+
+  // Templates
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [reminder24hTemplates, setReminder24hTemplates] = useState<ReminderTemplate[]>([]);
   const [reminder6hTemplates, setReminder6hTemplates] = useState<ReminderTemplate[]>([]);
 
-  // Loading states
-  const [loading, setLoading] = useState(true);
+  // Scheduling
   const [scheduling, setScheduling] = useState(false);
 
-  // Selection states
+  // Selection
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
-
-  // Job filtering for sourcing candidates
-  const [selectedSourcingJobId, setSelectedSourcingJobId] = useState<string>('all');
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -94,28 +104,62 @@ export default function ScheduleInterviewsPage() {
   const [reminder24hTemplateId, setReminder24hTemplateId] = useState<string>('');
   const [reminder6hTemplateId, setReminder6hTemplateId] = useState<string>('');
 
-  // Fetch candidates and templates
+  // Fetch jobs and templates on mount
   useEffect(() => {
-    fetchData();
+    fetchJobs();
+    fetchTemplates();
   }, []);
 
-  async function fetchData() {
-    setLoading(true);
+  async function fetchJobs() {
+    setJobsLoading(true);
     try {
-      // Fetch screening candidates
-      const screeningRes = await api.get('/api/candidates?source=SCREENING');
+      const [screeningRes, sourcingRes] = await Promise.all([
+        api.get('/api/jobs'),
+        api.get('/api/sourcing'),
+      ]);
+
+      const allJobs: Job[] = [];
+
       if (screeningRes.ok) {
-        setScreeningCandidates(screeningRes.data || []);
+        // Backend returns array directly for /api/jobs
+        const jobsArray = Array.isArray(screeningRes.data) ? screeningRes.data : (screeningRes.data?.jobs || []);
+        const screeningJobs: Job[] = jobsArray.map((job: any) => ({
+          id: job.id,
+          title: job.title,
+          createdAt: job.createdAt,
+          source: 'SCREENING' as const,
+          totalCandidates: job._count?.candidates ?? job.totalCandidates ?? 0,
+        }));
+        allJobs.push(...screeningJobs);
       }
 
-      // Fetch sourcing candidates
-      const sourcingRes = await api.get('/api/candidates?source=SOURCING');
       if (sourcingRes.ok) {
-        setSourcingCandidates(sourcingRes.data || []);
+        const sourcingJobs: Job[] = (sourcingRes.data?.jobs || []).map((job: any) => ({
+          id: job.id,
+          title: job.title,
+          createdAt: job.createdAt,
+          source: 'SOURCING' as const,
+          totalCandidates: job.totalProfilesFound || job.profilesSaved || 0,
+        }));
+        allJobs.push(...sourcingJobs);
       }
 
-      // Fetch email templates
-      const templatesRes = await api.get('/api/email-templates?type=INTERVIEW_INVITATION');
+      setJobs(allJobs);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setJobsLoading(false);
+    }
+  }
+
+  async function fetchTemplates() {
+    try {
+      const [templatesRes, reminder24hRes, reminder6hRes] = await Promise.all([
+        api.get('/api/email-templates?type=INTERVIEW_INVITATION'),
+        api.get('/api/email-templates?type=REMINDER_24H'),
+        api.get('/api/email-templates?type=REMINDER_6H'),
+      ]);
+
       if (templatesRes.ok) {
         setEmailTemplates(templatesRes.data || []);
         if (templatesRes.data?.length > 0) {
@@ -123,8 +167,6 @@ export default function ScheduleInterviewsPage() {
         }
       }
 
-      // Fetch 24h reminder templates
-      const reminder24hRes = await api.get('/api/email-templates?type=REMINDER_24H');
       if (reminder24hRes.ok) {
         setReminder24hTemplates(reminder24hRes.data || []);
         if (reminder24hRes.data?.length > 0) {
@@ -132,8 +174,6 @@ export default function ScheduleInterviewsPage() {
         }
       }
 
-      // Fetch 6h reminder templates
-      const reminder6hRes = await api.get('/api/email-templates?type=REMINDER_6H');
       if (reminder6hRes.ok) {
         setReminder6hTemplates(reminder6hRes.data || []);
         if (reminder6hRes.data?.length > 0) {
@@ -141,41 +181,38 @@ export default function ScheduleInterviewsPage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching templates:', error);
     }
   }
 
-  // Get unique sourcing jobs
-  function getUniqueSourcingJobs() {
-    const jobMap = new Map<string, { id: string; title: string; count: number }>();
-
-    sourcingCandidates.forEach(candidate => {
-      if (candidate.sourcingJob) {
-        const jobId = candidate.sourcingJob.id;
-        if (jobMap.has(jobId)) {
-          const job = jobMap.get(jobId)!;
-          job.count += 1;
-        } else {
-          jobMap.set(jobId, {
-            id: jobId,
-            title: candidate.sourcingJob.jobTitle,
-            count: 1,
-          });
-        }
+  async function fetchCandidatesForJob(job: Job) {
+    setCandidatesLoading(true);
+    setSelectedCandidates(new Set());
+    try {
+      const source = job.source === 'SCREENING' ? 'SCREENING' : 'SOURCING';
+      const res = await api.get(`/api/candidates?jobId=${job.id}&source=${source}`);
+      if (res.ok) {
+        // Backend returns { candidates: [...] } when jobId is provided, or array directly when source-only
+        const allCandidates: Candidate[] = res.data?.candidates || (Array.isArray(res.data) ? res.data : []);
+        // Only show candidates that have an email
+        setCandidates(allCandidates.filter((c) => c.email));
       }
-    });
-
-    return Array.from(jobMap.values());
+    } catch (error) {
+      console.error('Error fetching candidates:', error);
+    } finally {
+      setCandidatesLoading(false);
+    }
   }
 
-  // Filter sourcing candidates by selected job
-  function getFilteredSourcingCandidates() {
-    if (selectedSourcingJobId === 'all') {
-      return sourcingCandidates;
-    }
-    return sourcingCandidates.filter(c => c.sourcingJobId === selectedSourcingJobId);
+  function handleJobClick(job: Job) {
+    setSelectedJob(job);
+    fetchCandidatesForJob(job);
+  }
+
+  function handleBackToJobs() {
+    setSelectedJob(null);
+    setCandidates([]);
+    setSelectedCandidates(new Set());
   }
 
   function toggleCandidate(candidateId: string) {
@@ -188,9 +225,9 @@ export default function ScheduleInterviewsPage() {
     setSelectedCandidates(newSelection);
   }
 
-  function selectAll(candidates: Candidate[]) {
+  function selectAll() {
     const newSelection = new Set(selectedCandidates);
-    candidates.forEach(c => newSelection.add(c.id));
+    candidates.forEach((c) => newSelection.add(c.id));
     setSelectedCandidates(newSelection);
   }
 
@@ -201,17 +238,11 @@ export default function ScheduleInterviewsPage() {
   function openScheduleModal() {
     if (selectedCandidates.size === 0) return;
 
-    // Get first selected candidate to determine source
-    const firstSelectedId = Array.from(selectedCandidates)[0];
-    const allCandidates = [...screeningCandidates, ...sourcingCandidates];
-    const firstCandidate = allCandidates.find(c => c.id === firstSelectedId);
-
-    // Pre-fill with template
     if (emailTemplates.length > 0 && selectedTemplateId) {
-      const template = emailTemplates.find(t => t.id === selectedTemplateId);
+      const template = emailTemplates.find((t) => t.id === selectedTemplateId);
       if (template) {
         setCustomSubject(template.subject);
-        setCustomMessage(''); // Let backend use template
+        setCustomMessage('');
       }
     }
 
@@ -224,11 +255,9 @@ export default function ScheduleInterviewsPage() {
     setScheduling(true);
 
     try {
-      const allCandidates = [...screeningCandidates, ...sourcingCandidates];
-      const selected = allCandidates.filter(c => selectedCandidates.has(c.id));
+      const selected = candidates.filter((c) => selectedCandidates.has(c.id));
 
-      // Create interviews for each selected candidate
-      const promises = selected.map(candidate => {
+      const promises = selected.map((candidate) => {
         const payload: any = {
           source: candidate.jobId ? 'SCREENING' : 'SOURCING',
           expiryHours: parseInt(expiryHours),
@@ -247,13 +276,11 @@ export default function ScheduleInterviewsPage() {
         if (customMessage) payload.customEmailBody = customMessage;
         if (selectedTemplateId) payload.emailTemplateId = selectedTemplateId;
 
-        // Add scheduling if not sending immediately
         if (!sendImmediately && scheduledDate && scheduledTime) {
           const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
           payload.scheduledSendAt = scheduledDateTime.toISOString();
         }
 
-        // Add reminder settings
         payload.enable24hReminder = enable24hReminder;
         payload.enable6hReminder = enable6hReminder;
         if (enable24hReminder && reminder24hTemplateId) {
@@ -267,13 +294,12 @@ export default function ScheduleInterviewsPage() {
       });
 
       const results = await Promise.all(promises);
-      const successCount = results.filter(r => r.ok).length;
+      const successCount = results.filter((r) => r.ok).length;
 
       if (successCount > 0) await refreshCredits();
 
       alert(`Successfully scheduled ${successCount}/${selected.length} interviews!`);
 
-      // Reset state
       setSelectedCandidates(new Set());
       setShowModal(false);
       setCustomSubject('');
@@ -283,7 +309,6 @@ export default function ScheduleInterviewsPage() {
       setSendImmediately(true);
       setEnable24hReminder(true);
       setEnable6hReminder(true);
-
     } catch (error) {
       console.error('Error scheduling interviews:', error);
       alert('Failed to schedule interviews. Please try again.');
@@ -292,11 +317,175 @@ export default function ScheduleInterviewsPage() {
     }
   }
 
-  function renderCandidateList(candidates: Candidate[], source: 'screening' | 'sourcing') {
-    if (loading) {
-      return (
+  // ─── Job Cards Landing View ───────────────────────────────────────────
+
+  if (!selectedJob) {
+    const screeningJobs = jobs.filter((j) => j.source === 'SCREENING');
+    const sourcingJobs = jobs.filter((j) => j.source === 'SOURCING');
+
+    return (
+      <div className="container mx-auto max-w-7xl px-4 py-8">
+        <div className="space-y-2 mb-8">
+          <h1 className="text-4xl font-bold">Schedule Interviews</h1>
+          <p className="text-lg text-muted-foreground">
+            Select a job to choose candidates for AI-powered interviews
+          </p>
+        </div>
+
+        {jobsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'screening' | 'sourcing')}
+            className="w-full"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+              <TabsTrigger value="screening" className="gap-2">
+                <Briefcase className="h-4 w-4" />
+                Resume Screening ({screeningJobs.length})
+              </TabsTrigger>
+              <TabsTrigger value="sourcing" className="gap-2">
+                <Users className="h-4 w-4" />
+                AI Sourcing ({sourcingJobs.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="screening" className="space-y-4">
+              {screeningJobs.length === 0 ? (
+                <Card className="p-12 text-center">
+                  <Briefcase className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">No Resume Screening Jobs</h3>
+                  <p className="text-muted-foreground">
+                    Create a job and upload resumes to get started
+                  </p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {screeningJobs.map((job) => (
+                    <Card
+                      key={job.id}
+                      className="p-6 cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => handleJobClick(job)}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-lg line-clamp-2">{job.title}</h3>
+                          <Badge variant="secondary" className="shrink-0">
+                            Resume
+                          </Badge>
+                        </div>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p>{job.totalCandidates} candidates</p>
+                          <p className="text-xs">
+                            Created {new Date(job.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sourcing" className="space-y-4">
+              {sourcingJobs.length === 0 ? (
+                <Card className="p-12 text-center">
+                  <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">No Sourcing Jobs</h3>
+                  <p className="text-muted-foreground">
+                    Create a sourcing job to find candidates
+                  </p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sourcingJobs.map((job) => (
+                    <Card
+                      key={job.id}
+                      className="p-6 cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => handleJobClick(job)}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-lg line-clamp-2">{job.title}</h3>
+                          <Badge variant="secondary" className="shrink-0">
+                            Sourced
+                          </Badge>
+                        </div>
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                          <p>{job.totalCandidates} candidates</p>
+                          <p className="text-xs">
+                            Created {new Date(job.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Candidate List View (drilled into a job) ─────────────────────────
+
+  return (
+    <div className="container mx-auto max-w-7xl px-4 py-8">
+      {/* Header */}
+      <div className="space-y-3 mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold">Schedule Interviews</h1>
+            <p className="text-lg text-muted-foreground">
+              Select candidates for AI-powered interviews
+            </p>
+          </div>
+          <Button variant="outline" onClick={handleBackToJobs}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Jobs
+          </Button>
+        </div>
+      </div>
+
+      {/* Current Job Info */}
+      <Card className="p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">{selectedJob.title}</h2>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="secondary">
+                {selectedJob.source === 'SCREENING' ? 'Resume Screening' : 'AI Sourcing'}
+              </Badge>
+              <span>·</span>
+              <span>{candidates.length} candidates with email</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {selectedCandidates.size > 0 && (
+              <CreditCostBadge feature="INTERVIEW" quantity={selectedCandidates.size} />
+            )}
+            <Button
+              onClick={openScheduleModal}
+              disabled={selectedCandidates.size === 0}
+              size="lg"
+            >
+              <Mail className="mr-2 h-4 w-4" />
+              Schedule {selectedCandidates.size > 0 && `(${selectedCandidates.size})`}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Candidates */}
+      {candidatesLoading ? (
         <div className="space-y-4">
-          {[1, 2, 3].map(i => (
+          {[1, 2, 3].map((i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <Skeleton className="h-20 w-full" />
@@ -304,173 +493,76 @@ export default function ScheduleInterviewsPage() {
             </Card>
           ))}
         </div>
-      );
-    }
-
-    if (candidates.length === 0) {
-      return (
+      ) : candidates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <Users className="h-16 w-16 text-gray-300" />
-            <h3 className="mt-4 text-lg font-semibold">No candidates found</h3>
+            <Users className="h-16 w-16 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-semibold">No candidates with email</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              {source === 'screening'
-                ? 'Upload and process resumes to see candidates here.'
-                : 'Start a sourcing job to find candidates.'}
+              Only candidates with an email address can be scheduled for interviews.
             </p>
           </CardContent>
         </Card>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {selectedCandidates.size > 0
-              ? `${selectedCandidates.size} candidate(s) selected`
-              : `${candidates.length} candidate(s) available`}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => selectAll(candidates)}
-            >
-              Select All
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={deselectAll}
-            >
-              Clear
-            </Button>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {selectedCandidates.size > 0
+                ? `${selectedCandidates.size} candidate(s) selected`
+                : `${candidates.length} candidate(s) available`}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={selectAll}>
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" onClick={deselectAll}>
+                Clear
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-4">
-          {candidates.map(candidate => (
-            <Card
-              key={candidate.id}
-              className={`cursor-pointer transition-all ${
-                selectedCandidates.has(candidate.id)
-                  ? 'ring-2 ring-blue-500 bg-blue-50'
-                  : 'hover:shadow-md'
-              }`}
-              onClick={() => toggleCandidate(candidate.id)}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <Checkbox
-                    checked={selectedCandidates.has(candidate.id)}
-                    onCheckedChange={() => toggleCandidate(candidate.id)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+          <div className="grid gap-3">
+            {candidates.map((candidate) => (
+              <Card
+                key={candidate.id}
+                className={`cursor-pointer transition-all ${
+                  selectedCandidates.has(candidate.id)
+                    ? 'ring-2 ring-primary bg-primary/5'
+                    : 'hover:shadow-md'
+                }`}
+                onClick={() => toggleCandidate(candidate.id)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    <Checkbox
+                      checked={selectedCandidates.has(candidate.id)}
+                      onCheckedChange={() => toggleCandidate(candidate.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
 
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-semibold">{candidate.name}</h3>
-                        <p className="text-sm text-muted-foreground">{candidate.email}</p>
-                      </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="font-medium truncate">{candidate.name}</h3>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {candidate.email}
+                          </p>
+                        </div>
 
-                      <Badge variant="secondary">
-                        Score: {candidate.matchScore || candidate.overallScore || 0}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Briefcase className="h-4 w-4" />
-                        <span>
-                          {candidate.job?.title || candidate.sourcingJob?.jobTitle || 'N/A'}
-                        </span>
+                        {(candidate.matchScore != null || candidate.overallScore != null) && (
+                          <Badge variant="secondary" className="shrink-0">
+                            Score: {candidate.matchScore ?? candidate.overallScore ?? 0}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Schedule Interviews</h1>
-          <p className="mt-2 text-muted-foreground">
-            Select candidates to schedule AI-powered interviews
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {selectedCandidates.size > 0 && (
-            <CreditCostBadge feature="INTERVIEW" quantity={selectedCandidates.size} />
-          )}
-          <Button
-            onClick={openScheduleModal}
-            disabled={selectedCandidates.size === 0}
-            size="lg"
-          >
-            <Mail className="mr-2 h-4 w-4" />
-            Schedule {selectedCandidates.size > 0 && `(${selectedCandidates.size})`}
-          </Button>
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList>
-          <TabsTrigger value="screening">
-            Resume Screening ({screeningCandidates.length})
-          </TabsTrigger>
-          <TabsTrigger value="sourcing">
-            AI Sourcing ({sourcingCandidates.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="screening" className="mt-6">
-          {renderCandidateList(screeningCandidates, 'screening')}
-        </TabsContent>
-
-        <TabsContent value="sourcing" className="mt-6">
-          {/* Job Filter Dropdown */}
-          {sourcingCandidates.length > 0 && (
-            <div className="mb-6">
-              <Label htmlFor="jobFilter" className="mb-2 block">
-                Filter by Job
-              </Label>
-              <Select
-                value={selectedSourcingJobId}
-                onValueChange={(value) => {
-                  setSelectedSourcingJobId(value);
-                  setSelectedCandidates(new Set()); // Clear selection when switching jobs
-                }}
-              >
-                <SelectTrigger id="jobFilter" className="w-full max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    All Jobs ({sourcingCandidates.length} candidates)
-                  </SelectItem>
-                  {getUniqueSourcingJobs().map(job => (
-                    <SelectItem key={job.id} value={job.id}>
-                      {job.title} ({job.count} candidates)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {renderCandidateList(getFilteredSourcingCandidates(), 'sourcing')}
-        </TabsContent>
-      </Tabs>
+      )}
 
       {/* Schedule Interview Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -494,7 +586,7 @@ export default function ScheduleInterviewsPage() {
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent>
-                      {emailTemplates.map(template => (
+                      {emailTemplates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}
                         </SelectItem>
@@ -542,7 +634,6 @@ export default function ScheduleInterviewsPage() {
 
               {/* Right Column */}
               <div className="space-y-4">
-
                 {/* Send Immediately */}
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2">
@@ -558,7 +649,7 @@ export default function ScheduleInterviewsPage() {
 
                   {/* Schedule Send */}
                   {!sendImmediately && (
-                    <div className="pl-6 space-y-3 border-l-2 border-gray-200">
+                    <div className="pl-6 space-y-3 border-l-2 border-border">
                       <Label className="text-sm font-semibold">Schedule Send</Label>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -654,7 +745,7 @@ export default function ScheduleInterviewsPage() {
                             <SelectValue placeholder="Select reminder template" />
                           </SelectTrigger>
                           <SelectContent>
-                            {reminder24hTemplates.map(template => (
+                            {reminder24hTemplates.map((template) => (
                               <SelectItem key={template.id} value={template.id}>
                                 {template.name}
                               </SelectItem>
@@ -686,7 +777,7 @@ export default function ScheduleInterviewsPage() {
                             <SelectValue placeholder="Select reminder template" />
                           </SelectTrigger>
                           <SelectContent>
-                            {reminder6hTemplates.map(template => (
+                            {reminder6hTemplates.map((template) => (
                               <SelectItem key={template.id} value={template.id}>
                                 {template.name}
                               </SelectItem>

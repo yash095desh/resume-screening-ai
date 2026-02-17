@@ -19,11 +19,12 @@ interface Email {
   subject: string;
   bodyHtml: string;
   bodyText: string;
-  fromEmail: string;
-  toEmail: string;
+  from: string;
+  to: string;
   createdAt: string;
   status: string;
   isRead: boolean;
+  sentAt?: string;
   openedAt?: string;
   clickedAt?: string;
   deliveredAt?: string;
@@ -119,7 +120,7 @@ export default function InboxPage() {
 
     setSending(true);
     try {
-      const { ok } = await api.post(
+      const { ok, data } = await api.post(
         `/api/outreach/inbox/${selectedConversation.candidateSequenceId}/reply`,
         {
           subject: replySubject,
@@ -129,11 +130,14 @@ export default function InboxPage() {
       );
 
       if (ok) {
-        toast.success('Reply sent');
+        toast.success('Reply sent (1 credit used)');
         setReplyBody('');
 
-        // Refresh thread
+        // Refresh thread to show the sent reply
         fetchThread(selectedConversation.candidateSequenceId);
+      } else {
+        const errorMsg = data?.error || 'Failed to send reply';
+        toast.error(errorMsg);
       }
     } catch (error) {
       toast.error('Failed to send reply');
@@ -301,9 +305,12 @@ export default function InboxPage() {
                           </div>
                           {email.direction === 'OUTBOUND' && (
                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              {email.deliveredAt && <span className="flex items-center gap-1">✓ Delivered</span>}
-                              {email.openedAt && <span className="flex items-center gap-1">👁 Opened</span>}
-                              {email.clickedAt && <span className="flex items-center gap-1">🖱 Clicked</span>}
+                              {email.status === 'FAILED' && <Badge variant="destructive" className="text-xs">Failed</Badge>}
+                              {email.status === 'SCHEDULED' && <span>Sending...</span>}
+                              {(email.sentAt || email.status === 'SENT') && <span className="flex items-center gap-1">Sent</span>}
+                              {email.deliveredAt && <span className="flex items-center gap-1">Delivered</span>}
+                              {email.openedAt && <span className="flex items-center gap-1">Opened</span>}
+                              {email.clickedAt && <span className="flex items-center gap-1">Clicked</span>}
                             </div>
                           )}
                         </div>
@@ -339,23 +346,25 @@ export default function InboxPage() {
                   rows={4}
                   className="bg-background resize-none"
                 />
-                <Button
-                  onClick={sendReply}
-                  disabled={sending || !replySubject || !replyBody}
-                  className="w-full md:w-auto"
-                >
-                  {sending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Send Reply
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={sendReply}
+                    disabled={sending || !replySubject || !replyBody}
+                  >
+                    {sending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Reply
+                      </>
+                    )}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">1 credit per reply</span>
+                </div>
               </div>
             </>
           ) : (

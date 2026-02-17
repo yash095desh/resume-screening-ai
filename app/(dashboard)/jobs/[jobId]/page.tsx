@@ -23,13 +23,31 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Download,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   FileText,
   Search,
   Upload,
   Loader2,
   RefreshCw,
   Mail,
+  Trash2,
+  RotateCcw,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from "sonner"
 import { useApiClient } from '@/lib/api/client';
@@ -48,6 +66,7 @@ interface Candidate {
   missingSkills: string[];
   totalExperienceYears: number | null;
   processingStatus: string;
+  processingError: string | null;
   resumeUrl: string;
 }
 
@@ -61,7 +80,7 @@ interface Job {
 
 export default function CandidateRankingsPage() {
   const params = useParamsHook();
-  const { get , post } = useApiClient();
+  const { get, post, del } = useApiClient();
   const { refreshCredits } = useCredits();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
@@ -69,11 +88,15 @@ export default function CandidateRankingsPage() {
   const [processing, setProcessing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVerdict, setFilterVerdict] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('score');
   const [exporting, setExporting] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [showOutreachModal, setShowOutreachModal] = useState(false);
   const [showCreditConfirm, setShowCreditConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTargets, setDeleteTargets] = useState<string[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJob();
@@ -81,12 +104,12 @@ export default function CandidateRankingsPage() {
 
   const fetchJob = async () => {
     try {
-      const { res , data } = await get(`/api/jobs/${params.jobId}`);
+      const { res, data } = await get(`/api/jobs/${params.jobId}`);
       if (!res.ok) throw new Error('Failed to fetch job');
       setJob(data);
     } catch (error) {
-      toast.error( 'Failed to load job details.');
-      console.log('Failed to load job details.',(error as Error).message)
+      toast.error('Failed to load job details.');
+      console.log('Failed to load job details.', (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -96,13 +119,11 @@ export default function CandidateRankingsPage() {
     setProcessing(true);
     try {
       const { res } = await post(`/api/jobs/process/${params.jobId}`);
-
       if (!res.ok) throw new Error('Processing failed');
 
       await refreshCredits();
-      toast.info( 'Resumes are being analyzed. This may take a few minutes.');
+      toast.info('Resumes are being analyzed. This may take a few minutes.');
 
-      // Poll for updates
       const interval = setInterval(async () => {
         const { data } = await get(`/api/jobs/${params.jobId}`);
         setJob(data);
@@ -110,12 +131,80 @@ export default function CandidateRankingsPage() {
         if (data.status === 'completed') {
           clearInterval(interval);
           setProcessing(false);
-          toast.success('All candidates have been analyzed.');
+          const succeeded = data.candidates.filter((c: Candidate) => c.processingStatus === 'completed').length;
+          const failed = data.candidates.filter((c: Candidate) => c.processingStatus === 'failed').length;
+          if (failed > 0) {
+            toast.warning(`Processing complete: ${succeeded} succeeded, ${failed} failed`);
+          } else {
+            toast.success(`All ${succeeded} candidates analyzed successfully.`);
+          }
         }
       }, 5000);
     } catch (error: any) {
-      toast.error( error.message || 'Failed to process resumes.');
+      toast.error(error.message || 'Failed to process resumes.');
       setProcessing(false);
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId: string) => {
+    setActionLoading(candidateId);
+    try {
+      const { res } = await del(`/api/candidates/${candidateId}`);
+      if (!res.ok) throw new Error('Delete failed');
+      await fetchJob();
+      setSelectedCandidates(prev => prev.filter(id => id !== candidateId));
+      toast.success('Candidate deleted.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete candidate.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setActionLoading('bulk-delete');
+    try {
+      const { res } = await post(`/api/jobs/${params.jobId}/candidates/bulk-delete`, {
+        candidateIds: deleteTargets,
+      });
+      if (!res.ok) throw new Error('Bulk delete failed');
+      await fetchJob();
+      setSelectedCandidates([]);
+      toast.success(`${deleteTargets.length} candidate(s) deleted.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete candidates.');
+    } finally {
+      setActionLoading(null);
+      setShowDeleteConfirm(false);
+      setDeleteTargets([]);
+    }
+  };
+
+  const handleRetryCandidate = async (candidateId: string) => {
+    setActionLoading(candidateId);
+    try {
+      const { res } = await post(`/api/candidates/${candidateId}/retry`);
+      if (!res.ok) throw new Error('Retry failed');
+      await fetchJob();
+      toast.success('Candidate reset to pending. Click "Process Candidates" to retry.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to retry candidate.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRetryAllFailed = async () => {
+    setActionLoading('retry-all');
+    try {
+      const { res, data } = await post(`/api/jobs/${params.jobId}/candidates/retry-failed`);
+      if (!res.ok) throw new Error('Retry failed');
+      await fetchJob();
+      toast.success(`${data.count} failed candidate(s) reset. Click "Process Candidates" to retry.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to retry candidates.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -140,9 +229,9 @@ export default function CandidateRankingsPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      toast.success( `Downloaded as ${format.toUpperCase()}.`);
+      toast.success(`Downloaded as ${format.toUpperCase()}.`);
     } catch (error: any) {
-      toast.error( error.message || 'Failed to export data.');
+      toast.error(error.message || 'Failed to export data.');
     } finally {
       setExporting(false);
     }
@@ -171,6 +260,12 @@ export default function CandidateRankingsPage() {
     );
   }
 
+  if (filterStatus !== 'all') {
+    filteredCandidates = filteredCandidates.filter(
+      (c) => c.processingStatus === filterStatus
+    );
+  }
+
   if (sortBy === 'score') {
     filteredCandidates.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
   } else if (sortBy === 'name') {
@@ -187,6 +282,9 @@ export default function CandidateRankingsPage() {
   const pendingCandidates = job.candidates.filter(
     (c) => c.processingStatus === 'pending'
   );
+  const failedCandidates = job.candidates.filter(
+    (c) => c.processingStatus === 'failed'
+  );
 
   return (
     <div className="space-y-6">
@@ -195,10 +293,30 @@ export default function CandidateRankingsPage() {
         <div>
           <h1 className="text-3xl font-bold">{job.title}</h1>
           <p className="mt-2 text-muted-foreground">
-            {completedCandidates.length} of {job.totalCandidates} candidates analyzed
+            {completedCandidates.length} of {job.candidates.length} candidates analyzed
+            {failedCandidates.length > 0 && (
+              <span className="text-red-500 ml-2">
+                ({failedCandidates.length} failed)
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
+          {failedCandidates.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleRetryAllFailed}
+              disabled={actionLoading === 'retry-all'}
+              className="text-orange-600 border-orange-300 hover:bg-orange-50"
+            >
+              {actionLoading === 'retry-all' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-2 h-4 w-4" />
+              )}
+              Retry All Failed ({failedCandidates.length})
+            </Button>
+          )}
           <Link href={`/jobs/${params.jobId}/upload`}>
             <Button variant="outline">
               <Upload className="mr-2 h-4 w-4" />
@@ -251,6 +369,17 @@ export default function CandidateRankingsPage() {
             <Button variant="outline" onClick={() => setSelectedCandidates([])}>
               Clear Selection
             </Button>
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+              onClick={() => {
+                setDeleteTargets(selectedCandidates);
+                setShowDeleteConfirm(true);
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Selected
+            </Button>
             <Button onClick={() => setShowOutreachModal(true)}>
               <Mail className="w-4 h-4 mr-2" />
               Start Outreach
@@ -273,6 +402,18 @@ export default function CandidateRankingsPage() {
               />
             </div>
           </div>
+
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
 
           <Select value={filterVerdict} onValueChange={setFilterVerdict}>
             <SelectTrigger className="w-[180px]">
@@ -319,7 +460,9 @@ export default function CandidateRankingsPage() {
         <CardContent>
           {filteredCandidates.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
-              No candidates found matching your filters.
+              {filterStatus !== 'all' || filterVerdict !== 'all' || searchQuery
+                ? 'No candidates match your filters.'
+                : 'No candidates uploaded yet.'}
             </div>
           ) : (
             <Table>
@@ -339,6 +482,7 @@ export default function CandidateRankingsPage() {
                       }}
                     />
                   </TableHead>
+                  <TableHead className="w-10">Status</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Score</TableHead>
                   <TableHead>Fit</TableHead>
@@ -350,7 +494,14 @@ export default function CandidateRankingsPage() {
               </TableHeader>
               <TableBody>
                 {filteredCandidates.map((candidate) => (
-                  <TableRow key={candidate.id}>
+                  <TableRow
+                    key={candidate.id}
+                    className={
+                      candidate.processingStatus === 'failed'
+                        ? 'bg-red-50/50 dark:bg-red-950/10'
+                        : ''
+                    }
+                  >
                     <TableCell>
                       <input
                         type="checkbox"
@@ -365,6 +516,33 @@ export default function CandidateRankingsPage() {
                         }}
                       />
                     </TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <div
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                candidate.processingStatus === 'completed'
+                                  ? 'bg-green-500'
+                                  : candidate.processingStatus === 'failed'
+                                  ? 'bg-red-500'
+                                  : candidate.processingStatus === 'processing'
+                                  ? 'bg-blue-500 animate-pulse'
+                                  : 'bg-yellow-500'
+                              }`}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="capitalize">{candidate.processingStatus}</p>
+                            {candidate.processingError && (
+                              <p className="text-red-400 text-xs mt-1 max-w-[200px]">
+                                {candidate.processingError}
+                              </p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                     <TableCell className="font-medium">
                       {candidate.name}
                       {candidate.email && (
@@ -374,7 +552,23 @@ export default function CandidateRankingsPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {candidate.matchScore !== null ? (
+                      {candidate.processingStatus === 'failed' ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Badge variant="destructive" className="gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                Failed
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-[250px] text-xs">
+                                {candidate.processingError || 'Processing failed'}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : candidate.matchScore !== null ? (
                         <div className="flex items-center gap-2">
                           <div
                             className={`text-2xl font-bold ${
@@ -451,15 +645,32 @@ export default function CandidateRankingsPage() {
                         : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/jobs/${params.jobId}/candidate/${candidate.id}`}
-                        >
-                          <Button variant="outline" size="sm">
-                            View Details
+                      <div className="flex justify-end gap-1">
+                        {candidate.processingStatus === 'failed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRetryCandidate(candidate.id)}
+                            disabled={actionLoading === candidate.id}
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            title="Retry processing"
+                          >
+                            {actionLoading === candidate.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4" />
+                            )}
                           </Button>
-                        </Link>
-                        
+                        )}
+                        {candidate.processingStatus === 'completed' && (
+                          <Link
+                            href={`/jobs/${params.jobId}/candidate/${candidate.id}`}
+                          >
+                            <Button variant="outline" size="sm">
+                              View Details
+                            </Button>
+                          </Link>
+                        )}
                         <a href={candidate.resumeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -468,6 +679,19 @@ export default function CandidateRankingsPage() {
                             <FileText className="h-4 w-4" />
                           </Button>
                         </a>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setDeleteTargets([candidate.id]);
+                            setShowDeleteConfirm(true);
+                          }}
+                          disabled={actionLoading === candidate.id}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          title="Delete candidate"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -477,6 +701,47 @@ export default function CandidateRankingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {deleteTargets.length === 1 ? 'candidate' : `${deleteTargets.length} candidates`}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {deleteTargets.length === 1 ? 'this candidate' : `these ${deleteTargets.length} candidates`} and
+              their resume files. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoading === 'bulk-delete'}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTargets.length === 1) {
+                  handleDeleteCandidate(deleteTargets[0]);
+                  setShowDeleteConfirm(false);
+                  setDeleteTargets([]);
+                } else {
+                  handleBulkDelete();
+                }
+              }}
+              disabled={actionLoading === 'bulk-delete'}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {actionLoading === 'bulk-delete' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Credit Confirmation Dialog */}
       <CreditConfirmDialog

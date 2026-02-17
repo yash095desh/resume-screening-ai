@@ -556,7 +556,7 @@ export default function SourcingJobDetailPage() {
             {job.status === "COMPLETED" && (
               <Badge
                 variant="secondary"
-                className="bg-green-50 text-green-700 border-green-200 text-xs h-6"
+                className="bg-primary/10 text-primary border-primary/20 text-xs h-6"
               >
                 <CheckCircle2 className="w-3 h-3 mr-1" />
                 Complete
@@ -566,7 +566,7 @@ export default function SourcingJobDetailPage() {
             {job.status === "FAILED" && (
               <Badge
                 variant="secondary"
-                className="bg-red-50 text-red-700 border-red-200 text-xs h-6"
+                className="bg-destructive/10 text-destructive border-destructive/20 text-xs h-6"
               >
                 <XCircle className="w-3 h-3 mr-1" />
                 Failed
@@ -576,7 +576,7 @@ export default function SourcingJobDetailPage() {
             {job.status === "RATE_LIMITED" && (
               <Badge
                 variant="secondary"
-                className="bg-orange-50 text-orange-700 border-orange-200 text-xs h-6"
+                className="bg-secondary text-secondary-foreground border-border text-xs h-6"
               >
                 <AlertCircle className="w-3 h-3 mr-1" />
                 Paused
@@ -1047,7 +1047,7 @@ function CandidateCard({
                       <Badge
                         key={idx}
                         variant="secondary"
-                        className="text-[10px] h-5 px-2 bg-green-50 text-green-700 border-green-200 font-medium"
+                        className="text-[10px] h-5 px-2 bg-primary/10 text-primary border-primary/20 font-medium"
                       >
                         {skill}
                       </Badge>
@@ -1074,7 +1074,7 @@ function CandidateCard({
                 {candidate.isOpenToWork && (
                   <Badge
                     variant="secondary"
-                    className="text-[10px] h-5 px-2 bg-blue-50 text-blue-700 border-blue-200"
+                    className="text-[10px] h-5 px-2 bg-primary/10 text-primary border-primary/20"
                   >
                     <Target className="w-2.5 h-2.5 mr-1" />
                     Open

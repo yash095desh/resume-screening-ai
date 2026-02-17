@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/lib/auth/auth-context';
 import {
   useRazorpay,
   SubscriptionPlan,
@@ -43,6 +44,18 @@ const FEATURE_INFO = [
   { key: 'OUTREACH' as const, label: 'Outreach Emails', icon: Mail, unit: 'email' },
 ];
 
+const PLAN_MAILBOX_MAP: Record<string, number> = {
+  'free': 0,
+  'starter': 1,
+  'starter-annual': 1,
+  'growth': 2,
+  'growth-annual': 2,
+  'pro': 6,
+  'pro-annual': 6,
+  'enterprise': 17,
+  'enterprise-annual': 17,
+};
+
 interface Subscription {
   id: string;
   status: string;
@@ -61,6 +74,7 @@ interface BillingInfo {
 export default function BillingPage() {
   const router = useRouter();
   const { refreshCredits } = useCredits();
+  const { refreshUser } = useAuthContext();
   const {
     isLoading,
     purchaseCredits,
@@ -170,6 +184,7 @@ export default function BillingPage() {
       const balanceData = await fetchCreditBalance();
       setCreditBalance(balanceData);
       await refreshCredits();
+      await refreshUser();
     });
     setUpgradingPlanSlug(null);
   };
@@ -507,6 +522,22 @@ export default function BillingPage() {
                           </span>
                         </li>
                       ))}
+                      {(() => {
+                        const mailboxCount = PLAN_MAILBOX_MAP[plan.slug] ?? 0;
+                        return mailboxCount > 0 ? (
+                          <li className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-primary shrink-0" />
+                            <span>
+                              {mailboxCount} dedicated sending {mailboxCount === 1 ? 'mailbox' : 'mailboxes'}
+                            </span>
+                          </li>
+                        ) : (
+                          <li className="flex items-center gap-2 text-muted-foreground">
+                            <Mail className="h-4 w-4 shrink-0" />
+                            <span>No email outreach</span>
+                          </li>
+                        );
+                      })()}
                     </ul>
                   </CardContent>
                   <CardFooter>

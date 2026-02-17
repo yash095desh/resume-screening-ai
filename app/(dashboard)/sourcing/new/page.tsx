@@ -17,9 +17,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowLeft, 
-  Loader2, 
+import {
+  ArrowLeft,
+  Loader2,
   Sparkles,
   FileText,
   Users,
@@ -94,13 +94,13 @@ export default function NewSourcingJobPage() {
     }
   };
 
-  const isValid = 
-    formData.title.length >= 3 && 
+  const isValid =
+    formData.title.length >= 3 &&
     formData.jobRequirements.requiredSkills.length >= 3 &&
     formData.jobDescription.length >= 50;
-  
+
   const charCount = formData.jobDescription.length;
-  const charCountColor = charCount < 50 ? "text-red-600" : charCount > 4500 ? "text-yellow-600" : "text-gray-500";
+  const charCountColor = charCount < 50 ? "text-destructive" : charCount > 4500 ? "text-muted-foreground" : "text-muted-foreground";
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12 relative">
@@ -115,11 +115,11 @@ export default function NewSourcingJobPage() {
       </div>
 
       {/* Main Form Card */}
-      <Card className="border-2 border-purple-200">
-        <CardHeader className="bg-linear-to-r from-purple-50 to-blue-50">
+      <Card className="border-2 border-primary/20">
+        <CardHeader className="bg-primary/5">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-lg bg-purple-600 flex items-center justify-center">
-              <Sparkles className="h-6 w-6 text-white" />
+            <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
               <CardTitle className="text-2xl">Create New Sourcing Job</CardTitle>
@@ -150,7 +150,7 @@ export default function NewSourcingJobPage() {
                 maxLength={200}
                 className="text-base"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 The exact position title you&apos;re hiring for
               </p>
             </div>
@@ -174,11 +174,11 @@ export default function NewSourcingJobPage() {
                 - Java, Spring Boot, Microservices, REST APIs"
                 value={formData.jobRequirements.requiredSkills}
                 onChange={(e) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      requiredSkills: e.target.value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      requiredSkills: e.target.value
                     }
                   })
                 }
@@ -188,7 +188,7 @@ export default function NewSourcingJobPage() {
                 rows={4}
                 className="text-sm"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 List technical skills, frameworks, and tools that are must-haves
               </p>
             </div>
@@ -212,11 +212,11 @@ export default function NewSourcingJobPage() {
                 - Machine Learning, Data Science"
                 value={formData.jobRequirements.niceToHave}
                 onChange={(e) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      niceToHave: e.target.value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      niceToHave: e.target.value
                     }
                   })
                 }
@@ -224,7 +224,7 @@ export default function NewSourcingJobPage() {
                 rows={3}
                 className="text-sm"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Additional skills that would be a plus but aren&apos;t mandatory
               </p>
             </div>
@@ -240,11 +240,11 @@ export default function NewSourcingJobPage() {
               <Select
                 value={formData.jobRequirements.yearsOfExperience}
                 onValueChange={(value) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      yearsOfExperience: value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      yearsOfExperience: value
                     }
                   })
                 }
@@ -261,7 +261,7 @@ export default function NewSourcingJobPage() {
                   <SelectItem value="executive">Executive (C-level, VP+)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Minimum years of professional experience required
               </p>
             </div>
@@ -280,18 +280,18 @@ export default function NewSourcingJobPage() {
                 placeholder="e.g., New York, San Francisco, London, Remote, United States"
                 value={formData.jobRequirements.location}
                 onChange={(e) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      location: e.target.value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      location: e.target.value
                     }
                   })
                 }
                 maxLength={200}
                 className="text-base"
               />
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Preferred location(s) or specify &quot;Remote&quot; for remote positions
               </p>
             </div>
@@ -308,11 +308,11 @@ export default function NewSourcingJobPage() {
               <Select
                 value={formData.jobRequirements.industry}
                 onValueChange={(value) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      industry: value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      industry: value
                     }
                   })
                 }
@@ -337,7 +337,7 @@ export default function NewSourcingJobPage() {
                   <SelectItem value="Any">Any Industry</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Preferred industry background for candidates
               </p>
             </div>
@@ -354,11 +354,11 @@ export default function NewSourcingJobPage() {
               <Select
                 value={formData.jobRequirements.educationLevel}
                 onValueChange={(value) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      educationLevel: value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      educationLevel: value
                     }
                   })
                 }
@@ -375,7 +375,7 @@ export default function NewSourcingJobPage() {
                   <SelectItem value="Not Required">Not Required</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Minimum educational qualification required
               </p>
             </div>
@@ -392,11 +392,11 @@ export default function NewSourcingJobPage() {
               <Select
                 value={formData.jobRequirements.companyType}
                 onValueChange={(value) =>
-                  setFormData({ 
-                    ...formData, 
-                    jobRequirements: { 
-                      ...formData.jobRequirements, 
-                      companyType: value 
+                  setFormData({
+                    ...formData,
+                    jobRequirements: {
+                      ...formData.jobRequirements,
+                      companyType: value
                     }
                   })
                 }
@@ -414,7 +414,7 @@ export default function NewSourcingJobPage() {
                   <SelectItem value="Any">Any Company Type</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Type of companies you prefer candidates to have worked at
               </p>
             </div>
@@ -457,7 +457,7 @@ export default function NewSourcingJobPage() {
                   {charCount < 50 && ` (minimum 50 required)`}
                 </p>
                 {charCount >= 50 && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Valid
                   </Badge>
@@ -505,7 +505,7 @@ export default function NewSourcingJobPage() {
                   <SelectItem value="50">
                     <div className="flex items-center gap-2">
                       <span>50 candidates</span>
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs">Recommended</Badge>
+                      <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">Recommended</Badge>
                     </div>
                   </SelectItem>
                   <SelectItem value="75">
@@ -544,7 +544,7 @@ export default function NewSourcingJobPage() {
                 />
               )}
 
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 More candidates = better selection, but takes longer to process
               </p>
             </div>
@@ -571,7 +571,7 @@ export default function NewSourcingJobPage() {
               </Link>
               <Button
                 type="submit"
-                className="flex-1 bg-purple-600 hover:bg-purple-700"
+                className="flex-1 bg-primary hover:bg-primary/90"
                 disabled={isSubmitting || !isValid}
               >
                 {isSubmitting ? (
@@ -593,40 +593,40 @@ export default function NewSourcingJobPage() {
 
       {/* Info Cards */}
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-muted border-border">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Info className="w-4 h-4 text-blue-600" />
+              <Info className="w-4 h-4 text-primary" />
               How It Works
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-blue-900">
+          <CardContent className="space-y-2 text-sm text-foreground">
             <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">1</span>
               </div>
               <p>AI analyzes your job requirements and creates optimized candidate search filters</p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">2</span>
               </div>
               <p>Automatically searches professional networks using skills, experience, location, and industry filters</p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">3</span>
               </div>
               <p>Extracts full profile details including work history, education, skills, and contact info</p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">4</span>
               </div>
               <p>AI scores each candidate (0-100) based on skills, experience, industry, and seniority match</p>
             </div>
             <div className="flex items-start gap-2">
-              <div className="h-6 w-6 rounded-full bg-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs font-bold">5</span>
               </div>
               <p>Results appear in real-time with detailed reasoning for each score</p>
@@ -634,52 +634,52 @@ export default function NewSourcingJobPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-green-50 border-green-200">
+        <Card className="bg-muted border-border">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-green-600" />
+              <TrendingUp className="w-4 h-4 text-primary" />
               AI Scoring Criteria
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-green-900">
+          <CardContent className="space-y-3 text-sm text-foreground">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Required Skills Match</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">30 pts</Badge>
+                <Badge variant="secondary" className="bg-primary/10 text-primary">30 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Percentage of required skills they possess</p>
+              <p className="text-xs text-muted-foreground">Percentage of required skills they possess</p>
             </div>
-            <Separator className="bg-green-200" />
+            <Separator />
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Experience Level</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">25 pts</Badge>
+                <Badge variant="secondary" className="bg-primary/10 text-primary">25 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Years of experience match with requirements</p>
+              <p className="text-xs text-muted-foreground">Years of experience match with requirements</p>
             </div>
-            <Separator className="bg-green-200" />
+            <Separator />
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Industry Relevance</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">20 pts</Badge>
+                <Badge variant="secondary" className="bg-primary/10 text-primary">20 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Background in same or related industry</p>
+              <p className="text-xs text-muted-foreground">Background in same or related industry</p>
             </div>
-            <Separator className="bg-green-200" />
+            <Separator />
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Title/Seniority Match</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">15 pts</Badge>
+                <Badge variant="secondary" className="bg-primary/10 text-primary">15 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Current role matches target seniority level</p>
+              <p className="text-xs text-muted-foreground">Current role matches target seniority level</p>
             </div>
-            <Separator className="bg-green-200" />
+            <Separator />
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-semibold">Nice-to-Have Skills</span>
-                <Badge variant="secondary" className="bg-green-200 text-green-800">10 pts</Badge>
+                <Badge variant="secondary" className="bg-primary/10 text-primary">10 pts</Badge>
               </div>
-              <p className="text-xs text-green-700">Bonus points for additional desired skills</p>
+              <p className="text-xs text-muted-foreground">Bonus points for additional desired skills</p>
             </div>
           </CardContent>
         </Card>
@@ -696,37 +696,37 @@ export default function NewSourcingJobPage() {
       />
 
       {/* Tips Card */}
-      <Card className="bg-purple-50 border-purple-200">
+      <Card className="bg-muted border-border">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-600" />
+            <Sparkles className="w-4 h-4 text-primary" />
             Pro Tips for Best Results
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm text-purple-900">
+          <ul className="space-y-2 text-sm text-foreground">
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Be specific with skills:</strong> Use exact technology names (e.g., &quot;React 18&quot; instead of just &quot;frontend&quot;)</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Separate required from nice-to-have:</strong> This helps AI prioritize candidates correctly</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Include experience context:</strong> Mention if you need specific domain experience</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Use full location names:</strong> &quot;United Kingdom&quot; works better than &quot;UK&quot;</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Mention company preferences:</strong> If you want candidates from startups or Fortune 500 companies</span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <span><strong>Detail the job description:</strong> More context = better AI matching and scoring</span>
             </li>
           </ul>

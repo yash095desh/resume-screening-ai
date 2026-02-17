@@ -19,6 +19,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Plus,
@@ -33,9 +44,7 @@ import {
   Mail,
   Send,
   Eye,
-  MousePointer,
   Reply,
-  XCircle,
 } from 'lucide-react';
 
 interface Sequence {
@@ -143,10 +152,6 @@ export default function SequencesPage() {
   }
 
   async function deleteSequence(sequenceId: string) {
-    if (!confirm('Are you sure you want to delete this sequence?')) {
-      return;
-    }
-
     try {
       setDeletingId(sequenceId);
       const token = await getToken();
@@ -250,12 +255,14 @@ export default function SequencesPage() {
               {sequences.map((sequence) => (
                 <TableRow
                   key={sequence.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/outreach/sequences/${sequence.id}`)}
+                  className="hover:bg-muted/50"
                 >
                   <TableCell>
-                    <div className="space-y-1">
-                      <div className="font-medium">{sequence.name}</div>
+                    <div
+                      className="space-y-1 cursor-pointer"
+                      onClick={() => router.push(`/outreach/sequences/${sequence.id}`)}
+                    >
+                      <div className="font-medium hover:underline">{sequence.name}</div>
                       {sequence.description && (
                         <div className="text-sm text-muted-foreground line-clamp-1">
                           {sequence.description}
@@ -292,26 +299,20 @@ export default function SequencesPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/outreach/sequences/${sequence.id}/edit`);
-                          }}
+                          onClick={() => router.push(`/outreach/sequences/${sequence.id}/edit`)}
                         >
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSequenceStatus(sequence.id, sequence.isActive);
-                          }}
+                          onClick={() => toggleSequenceStatus(sequence.id, sequence.isActive)}
                         >
                           {sequence.isActive ? (
                             <>
@@ -326,34 +327,50 @@ export default function SequencesPage() {
                           )}
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            duplicateSequence(sequence.id);
-                          }}
+                          onClick={() => duplicateSequence(sequence.id)}
                         >
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicate
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          disabled={deletingId === sequence.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSequence(sequence.id);
-                          }}
-                        >
-                          {deletingId === sequence.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </>
-                          )}
-                        </DropdownMenuItem>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              disabled={deletingId === sequence.id}
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              {deletingId === sequence.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete &quot;{sequence.name}&quot;?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete this sequence. Active enrollments
+                                must be cancelled first. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteSequence(sequence.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

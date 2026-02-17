@@ -48,6 +48,18 @@ interface EmailStatus {
   totalSpamComplaints: number;
   bounceRate: number;
   spamRate: number;
+  mailboxCapacity?: {
+    totalDailyLimit: number;
+    totalSentToday: number;
+    totalRemaining: number;
+    mailboxCount: number;
+  };
+  queue?: {
+    pendingStep1: number;
+    pendingFollowups: number;
+    totalPending: number;
+    estimatedDaysToComplete: number;
+  };
 }
 
 interface EmailSetupGuardProps {
@@ -212,15 +224,7 @@ export function EmailSetupGuard({
               ) : (
                 <Clock className="h-3 w-3 text-gray-400" />
               )}
-              <span>Subdomain Assigned</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {emailStatus.setupStages.dnsConfigured ? (
-                <CheckCircle2 className="h-3 w-3 text-green-600" />
-              ) : (
-                <Clock className="h-3 w-3 text-gray-400" />
-              )}
-              <span>DNS Configured</span>
+              <span>Email Configured</span>
             </div>
             <div className="flex items-center gap-2">
               {emailStatus.setupStages.domainVerified ? (
@@ -236,7 +240,7 @@ export function EmailSetupGuard({
               ) : (
                 <Clock className="h-3 w-3 text-gray-400" />
               )}
-              <span>Warmup Started</span>
+              <span>Mailboxes Active</span>
             </div>
             <div className="flex items-center gap-2">
               {emailStatus.setupStages.warmupComplete ? (
@@ -255,18 +259,25 @@ export function EmailSetupGuard({
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Email Warmup Progress</h3>
               <span className="text-sm text-muted-foreground">
-                Day {emailStatus.warmupDaysElapsed}/{emailStatus.warmupDaysTotal}
+                {emailStatus.warmupProgress}% complete
               </span>
             </div>
             <Progress value={emailStatus.warmupProgress} />
             <p className="text-sm text-muted-foreground">
-              Your email domain is warming up to build sender reputation. Daily sending limits will increase gradually over {emailStatus.warmupDaysTotal} days.
+              Your email infrastructure is warming up to build sender reputation.
+              Daily sending limits will increase gradually as warmup progresses.
+              {emailStatus.mailboxCapacity && (
+                <span className="block mt-1">
+                  {emailStatus.mailboxCapacity.mailboxCount} mailbox{emailStatus.mailboxCapacity.mailboxCount !== 1 ? 'es' : ''} assigned
+                  {' '}({emailStatus.dailyEmailLimit} emails/day capacity)
+                </span>
+              )}
             </p>
           </div>
         )}
 
         {/* Daily Limits */}
-        {emailStatus.domainVerified && (
+        {emailStatus.canSendNow && (
           <div className="p-4 border rounded-lg space-y-3">
             <h3 className="font-semibold">Daily Sending Limits</h3>
             <div className="space-y-2">
