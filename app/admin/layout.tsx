@@ -8,6 +8,7 @@ import {
   Import,
   ShieldBan,
   ArrowLeft,
+  Users,
 } from 'lucide-react';
 
 export default function AdminLayout({
@@ -60,6 +61,14 @@ export default function AdminLayout({
               <Link href="/admin/mailboxes/import" className={linkClass('/admin/mailboxes/import')}>
                 <Import size={18} />
                 <span>Bulk Import</span>
+              </Link>
+
+              <p className="text-xs font-semibold text-muted-foreground px-4 py-2 pt-6">
+                USERS
+              </p>
+              <Link href="/admin/users" className={linkClass('/admin/users')}>
+                <Users size={18} />
+                <span>Management</span>
               </Link>
 
               <p className="text-xs font-semibold text-muted-foreground px-4 py-2 pt-6">
