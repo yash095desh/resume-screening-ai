@@ -640,7 +640,7 @@ export default function InterviewResultsPage() {
                           className={`flex gap-3 ${isCandidate ? 'flex-row-reverse' : ''}`}
                         >
                           <div
-                            className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-md ${
+                            className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-md ${
                               isCandidate
                                 ? 'bg-blue-600 text-white'
                                 : isAI

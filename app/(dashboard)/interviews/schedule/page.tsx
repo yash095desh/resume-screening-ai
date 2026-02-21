@@ -298,7 +298,7 @@ export default function ScheduleInterviewsPage() {
 
       if (successCount > 0) await refreshCredits();
 
-      alert(`Successfully scheduled ${successCount}/${selected.length} interviews!`);
+      alert(`Successfully scheduled ${successCount}/${selected.length} interviews! (${successCount * 145} credits reserved — billed at 21 cr/min, unused refunded)`);
 
       setSelectedCandidates(new Set());
       setShowModal(false);

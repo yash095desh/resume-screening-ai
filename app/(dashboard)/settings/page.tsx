@@ -383,7 +383,7 @@ export default function SettingsPage() {
                 <p className="text-lg font-semibold text-foreground">
                   {Math.floor(currentCredits / FEATURE_COSTS.INTERVIEW)}
                 </p>
-                <p className="text-xs text-muted-foreground">{FEATURE_COSTS.INTERVIEW} cr each</p>
+                <p className="text-xs text-muted-foreground">21 cr/min · up to {FEATURE_COSTS.INTERVIEW}</p>
               </div>
 
               <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1">

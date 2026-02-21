@@ -72,17 +72,42 @@ export function CreditConfirmDialog({
             </DialogHeader>
 
             <div className="space-y-3 py-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Cost</span>
-                <span className="font-semibold">
-                  {totalCost} credit{totalCost !== 1 ? 's' : ''}
-                  {quantity > 1 && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      ({quantity} × {costPerUnit})
+              {featureType === 'INTERVIEW' ? (
+                <>
+                  <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 space-y-1.5">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                      Per-minute billing: 21 credits/min
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      We reserve {costPerUnit} credits per interview upfront. You&apos;re only charged for the actual duration. Unused credits are refunded automatically after the interview ends.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Reservation</span>
+                    <span className="font-semibold">
+                      {totalCost} credit{totalCost !== 1 ? 's' : ''}
+                      {quantity > 1 && (
+                        <span className="text-muted-foreground font-normal ml-1">
+                          ({quantity} × {costPerUnit})
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Cost</span>
+                  <span className="font-semibold">
+                    {totalCost} credit{totalCost !== 1 ? 's' : ''}
+                    {quantity > 1 && (
+                      <span className="text-muted-foreground font-normal ml-1">
+                        ({quantity} × {costPerUnit})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
 
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Current balance</span>
@@ -101,7 +126,7 @@ export function CreditConfirmDialog({
               </Button>
               <Button onClick={handleConfirm}>
                 <Coins className="mr-2 h-4 w-4" />
-                Confirm — {totalCost} cr
+                {featureType === 'INTERVIEW' ? `Reserve ${totalCost} cr` : `Confirm — ${totalCost} cr`}
               </Button>
             </DialogFooter>
           </>

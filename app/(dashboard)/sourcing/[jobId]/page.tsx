@@ -50,6 +50,8 @@ import {
   Eye,
   FileText,
   Calculator,
+  Lightbulb,
+  SearchX,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useApiClient } from "@/lib/api/client";
@@ -114,6 +116,48 @@ interface JobData {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+/** Check if this is a "no candidates found" failure (expected outcome, not a bug) */
+function isNoCandidatesFailure(job: JobData): boolean {
+  return job.status === 'FAILED' && job.currentStage === 'NO_CANDIDATES_FOUND';
+}
+
+/** Parse the markdown report from handle-no-candidates into structured data */
+function parseNoCandidatesReport(errorMessage: string): {
+  searchCount: number;
+  recommendations: string[];
+} {
+  const searchCountMatch = errorMessage.match(/trying (\d+) different/);
+  const searchCount = searchCountMatch ? parseInt(searchCountMatch[1]) : 0;
+
+  const recommendations = [
+    'Try broader location requirements',
+    'Consider reducing years of experience needed',
+    'Expand list of acceptable job titles',
+    'Review required skills — some may be too specific',
+    'Consider alternative industries with transferable skills',
+  ];
+
+  return { searchCount, recommendations };
+}
+
+/** Map raw backend errors to user-friendly messages */
+function getUserFriendlyError(errorMessage: string): string {
+  if (errorMessage.startsWith('Search failed:')) {
+    return 'We couldn\u2019t complete the LinkedIn search. This is usually a temporary issue — please try again in a few minutes.';
+  }
+  if (errorMessage.includes('timeout') || errorMessage.includes('TIMEOUT')) {
+    return 'The search took too long to complete. Try narrowing your requirements or reducing the number of candidates.';
+  }
+  if (errorMessage.includes('rate limit') || errorMessage.includes('Rate limit')) {
+    return 'We hit a service limit. Please wait a few minutes and try again.';
+  }
+  if (errorMessage.includes('Failed to handle no candidates')) {
+    return 'Something went wrong while processing search results. Please try again.';
+  }
+  // Fallback: don't show raw technical error
+  return 'Something went wrong during sourcing. Please retry or adjust your job requirements.';
+}
 
 export default function SourcingJobDetailPage() {
   const params = useParams();
@@ -564,13 +608,23 @@ export default function SourcingJobDetailPage() {
             )}
 
             {job.status === "FAILED" && (
-              <Badge
-                variant="secondary"
-                className="bg-destructive/10 text-destructive border-destructive/20 text-xs h-6"
-              >
-                <XCircle className="w-3 h-3 mr-1" />
-                Failed
-              </Badge>
+              isNoCandidatesFailure(job) ? (
+                <Badge
+                  variant="secondary"
+                  className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-xs h-6"
+                >
+                  <SearchX className="w-3 h-3 mr-1" />
+                  No Results
+                </Badge>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  className="bg-destructive/10 text-destructive border-destructive/20 text-xs h-6"
+                >
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Failed
+                </Badge>
+              )
             )}
 
             {job.status === "RATE_LIMITED" && (
@@ -618,35 +672,24 @@ export default function SourcingJobDetailPage() {
           </div>
         )}
 
-        {/* Enhanced Error and Rate-Limited Alert */}
-        {(job.status === "FAILED" || job.status === "RATE_LIMITED") &&
-          job.errorMessage && (
-            <Alert
-              variant={
-                job.status === "RATE_LIMITED" ? "default" : "destructive"
-              }
-              className="mb-4"
-            >
-              <AlertCircle className="h-3.5 w-3.5" />
-              <AlertDescription className="text-xs">
+        {/* No Candidates Found — amber info card with recommendations */}
+        {isNoCandidatesFailure(job) && job.errorMessage && (() => {
+          const { searchCount, recommendations } = parseNoCandidatesReport(job.errorMessage);
+          return (
+            <Card className="mb-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+              <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="font-medium">
-                      {job.status === "RATE_LIMITED"
-                        ? "Service temporarily paused"
-                        : "Job failed"}
+                  <div className="flex items-start gap-2.5">
+                    <SearchX className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                        No matching candidates found
+                      </h3>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                        We tried {searchCount || 'multiple'} different search strategies but couldn&apos;t find profiles matching your requirements.
+                      </p>
                     </div>
-                    <div className="text-muted-foreground">
-                      {job.errorMessage}
-                    </div>
-
-                    {job.status === "RATE_LIMITED" && job.rateLimitResetAt && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        <RateLimitCountdown resetAt={job.rateLimitResetAt} />
-                      </div>
-                    )}
                   </div>
-
                   <Button
                     variant="outline"
                     size="sm"
@@ -657,9 +700,84 @@ export default function SourcingJobDetailPage() {
                     Retry
                   </Button>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
+
+                <div className="pl-7.5">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Lightbulb className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                      Suggestions to improve results
+                    </span>
+                  </div>
+                  <ul className="space-y-1">
+                    {recommendations.map((rec, i) => (
+                      <li key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                        <span className="text-amber-500 mt-0.5 shrink-0">•</span>
+                        {rec}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* Rate-Limited Alert */}
+        {job.status === "RATE_LIMITED" && job.errorMessage && (
+          <Alert variant="default" className="mb-4">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <AlertDescription className="text-xs">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="font-medium">Service temporarily paused</div>
+                  <div className="text-muted-foreground">
+                    {job.errorMessage}
+                  </div>
+                  {job.rateLimitResetAt && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <RateLimitCountdown resetAt={job.rateLimitResetAt} />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="h-7 shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Actual Error Alert (not no-candidates) */}
+        {job.status === "FAILED" && !isNoCandidatesFailure(job) && job.errorMessage && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-3.5 w-3.5" />
+            <AlertDescription className="text-xs">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="font-medium">Something went wrong</div>
+                  <div className="text-muted-foreground">
+                    {getUserFriendlyError(job.errorMessage)}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRetry}
+                  className="h-7 shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Compact Stats Grid */}
         <div className="grid grid-cols-4 gap-3 mb-4">

@@ -18,12 +18,15 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+import { AttachmentMeta } from '@/components/outreach/StepAttachments';
+
 interface Step {
   id: string;
   stepNumber: number;
   subject: string;
   bodyHtml: string;
   bodyText: string;
+  attachments?: AttachmentMeta[];
   delayDays: number;
   delayHours: number;
   emailTemplateId?: string | null;
@@ -79,6 +82,7 @@ export default function EditSequencePage() {
         subject: step.subject || '',
         bodyHtml: step.bodyHtml || '',
         bodyText: step.bodyText || '',
+        attachments: step.attachments || [],
         delayDays: step.delayDays,
         delayHours: step.delayHours,
         emailTemplateId: step.emailTemplateId,
@@ -199,6 +203,7 @@ export default function EditSequencePage() {
             subject: step.subject,
             bodyHtml: step.bodyHtml,
             bodyText: step.bodyText || null,
+            attachments: step.attachments?.length ? step.attachments : undefined,
             delayDays: step.delayDays,
             delayHours: step.delayHours,
           }),
@@ -352,6 +357,7 @@ export default function EditSequencePage() {
                   step={step}
                   isFirst={index === 0}
                   isOnlyStep={steps.length === 1}
+                  sequenceId={sequenceId}
                   onUpdate={updateStep}
                   onRemove={removeStep}
                 />

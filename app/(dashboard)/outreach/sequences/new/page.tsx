@@ -18,12 +18,15 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+import { AttachmentMeta } from '@/components/outreach/StepAttachments';
+
 interface Step {
   id: string;
   stepNumber: number;
   subject: string;
   bodyHtml: string;
   bodyText: string;
+  attachments?: AttachmentMeta[];
   delayDays: number;
   delayHours: number;
   emailTemplateId?: string | null;
@@ -127,6 +130,7 @@ export default function NewSequencePage() {
             subject: step.subject,
             bodyHtml: step.bodyHtml,
             bodyText: step.bodyText || null,
+            attachments: step.attachments?.length ? step.attachments : undefined,
             delayDays: step.delayDays,
             delayHours: step.delayHours,
           })),

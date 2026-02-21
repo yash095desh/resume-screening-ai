@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RichTextEditor } from './RichTextEditor';
 import { EmailPreview } from './EmailPreview';
 import { TemplateSelector } from './TemplateSelector';
+import { StepAttachments, AttachmentMeta } from './StepAttachments';
 import { GripVertical, Trash2, Edit3, Eye } from 'lucide-react';
 
 interface Step {
@@ -17,6 +18,7 @@ interface Step {
   subject: string;
   bodyHtml: string;
   bodyText: string;
+  attachments?: AttachmentMeta[];
   delayDays: number;
   delayHours: number;
   emailTemplateId?: string | null;
@@ -26,6 +28,7 @@ interface SequenceStepEditorProps {
   step: Step;
   isFirst: boolean;
   isOnlyStep: boolean;
+  sequenceId?: string;
   onUpdate: (stepId: string, field: keyof Step, value: any) => void;
   onRemove: (stepId: string) => void;
   dragHandleProps?: any; // For drag-and-drop integration
@@ -35,6 +38,7 @@ export function SequenceStepEditor({
   step,
   isFirst,
   isOnlyStep,
+  sequenceId,
   onUpdate,
   onRemove,
   dragHandleProps,
@@ -209,6 +213,14 @@ export function SequenceStepEditor({
                 </p>
               </div>
             </details>
+
+            {/* Attachments */}
+            <StepAttachments
+              attachments={step.attachments || []}
+              onChange={(files) => onUpdate(step.id, 'attachments', files)}
+              sequenceId={sequenceId}
+              stepNumber={step.stepNumber}
+            />
           </TabsContent>
 
           {/* Preview Tab */}

@@ -87,8 +87,8 @@ function PipelinePageContent() {
 
   useEffect(() => {
     if (selectedJob) {
-      fetchPipeline();
-      const interval = setInterval(fetchPipeline, 10000); // Auto-refresh every 10s
+      fetchPipeline(false);
+      const interval = setInterval(() => fetchPipeline(true), 10000);
       return () => clearInterval(interval);
     }
   }, [selectedJob]);
@@ -155,11 +155,11 @@ function PipelinePageContent() {
     }
   }
 
-  async function fetchPipeline() {
+  async function fetchPipeline(silent = false) {
     if (!selectedJob) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
 
       const token = await getToken();

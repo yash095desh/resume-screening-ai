@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import {
   Server, Activity, AlertTriangle, Pause,
   Flame, XCircle, Loader2, Play, UserPlus, UserMinus,
-  RefreshCw, Gauge, ArrowUpCircle,
+  RefreshCw, ArrowUpCircle,
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -76,12 +76,9 @@ export default function MailboxDashboardPage() {
   const [reassignUserId, setReassignUserId] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Set stage / set limit dialogs
+  // Set stage dialog
   const [stageTarget, setStageTarget] = useState<Mailbox | null>(null);
   const [stageValue, setStageValue] = useState('4');
-  const [stageCustomLimit, setStageCustomLimit] = useState('');
-  const [limitTarget, setLimitTarget] = useState<Mailbox | null>(null);
-  const [limitValue, setLimitValue] = useState('');
 
   async function fetchData() {
     setLoading(true);
@@ -154,11 +151,9 @@ export default function MailboxDashboardPage() {
     if (!stageTarget) return;
     setActionLoading(true);
     try {
-      const body: any = { stage: parseInt(stageValue) };
-      if (stageCustomLimit && parseInt(stageCustomLimit) > 0) {
-        body.dailyLimit = parseInt(stageCustomLimit);
-      }
-      const { ok, data } = await api.post(`/api/admin/mailboxes/${stageTarget.id}/set-stage`, body);
+      const { ok, data } = await api.post(`/api/admin/mailboxes/${stageTarget.id}/set-stage`, {
+        stage: parseInt(stageValue),
+      });
       if (ok) {
         toast.success(`Set ${stageTarget.emailAddress} to stage ${data.updated.stage}, limit ${data.updated.dailyLimit}`);
         setStageTarget(null);
@@ -168,27 +163,6 @@ export default function MailboxDashboardPage() {
       }
     } catch {
       toast.error('Failed to set stage');
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleSetLimit() {
-    if (!limitTarget) return;
-    setActionLoading(true);
-    try {
-      const { ok, data } = await api.post(`/api/admin/mailboxes/${limitTarget.id}/set-limit`, {
-        dailyLimit: parseInt(limitValue),
-      });
-      if (ok) {
-        toast.success(`${limitTarget.emailAddress}: limit ${data.previousLimit} → ${data.newLimit}`);
-        setLimitTarget(null);
-        fetchData();
-      } else {
-        toast.error(data?.error || 'Failed to set limit');
-      }
-    } catch {
-      toast.error('Failed to set limit');
     } finally {
       setActionLoading(false);
     }
@@ -379,23 +353,10 @@ export default function MailboxDashboardPage() {
                             onClick={() => {
                               setStageTarget(mb);
                               setStageValue(String(mb.warmupStage));
-                              setStageCustomLimit('');
                             }}
                           >
                             <ArrowUpCircle className="h-3 w-3 mr-1" />
                             Stage
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => {
-                              setLimitTarget(mb);
-                              setLimitValue(String(mb.dailyLimit));
-                            }}
-                          >
-                            <Gauge className="h-3 w-3 mr-1" />
-                            Limit
                           </Button>
                           {mb.status === 'PAUSED' && (
                             <Button
@@ -521,33 +482,22 @@ export default function MailboxDashboardPage() {
               </span>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Stage</Label>
-              <Select value={stageValue} onValueChange={setStageValue}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Stage 1 (5/day)</SelectItem>
-                  <SelectItem value="2">Stage 2 (10/day)</SelectItem>
-                  <SelectItem value="3">Stage 3 (20/day)</SelectItem>
-                  <SelectItem value="4">Stage 4 (30/day)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Custom daily limit (optional)</Label>
-              <Input
-                type="number"
-                value={stageCustomLimit}
-                onChange={(e) => setStageCustomLimit(e.target.value)}
-                placeholder="Leave empty for stage default"
-              />
-              <p className="text-xs text-muted-foreground">
-                Override the stage default. Sets preWarmed=true to prevent cron reversion.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Label>Stage</Label>
+            <Select value={stageValue} onValueChange={setStageValue}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Stage 1 (5/day)</SelectItem>
+                <SelectItem value="2">Stage 2 (10/day)</SelectItem>
+                <SelectItem value="3">Stage 3 (20/day)</SelectItem>
+                <SelectItem value="4">Stage 4 (30/day)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Also sets activeSendingDays so the cron won't revert this change.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStageTarget(null)}>Cancel</Button>
@@ -559,45 +509,6 @@ export default function MailboxDashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Set Limit Dialog */}
-      <Dialog open={!!limitTarget} onOpenChange={() => setLimitTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Set Daily Limit</DialogTitle>
-            <DialogDescription>
-              Change daily sending limit for <strong>{limitTarget?.emailAddress}</strong>
-              <span className="block mt-1 text-xs">
-                Current: {limitTarget?.dailyLimit}/day (Stage {limitTarget?.warmupStage})
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Daily limit</Label>
-              <Input
-                type="number"
-                value={limitValue}
-                onChange={(e) => setLimitValue(e.target.value)}
-                placeholder="e.g. 50"
-                min={1}
-              />
-              <p className="text-xs text-muted-foreground">
-                Sets preWarmed=true to prevent cron from overwriting.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLimitTarget(null)}>Cancel</Button>
-            <Button
-              onClick={handleSetLimit}
-              disabled={actionLoading || !limitValue || parseInt(limitValue) < 1}
-            >
-              {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Set Limit
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -747,11 +747,17 @@ export default function BillingPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium">{feature.label}</p>
-                        <p className="text-xs text-muted-foreground">Per {feature.unit}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {feature.key === 'INTERVIEW'
+                            ? '21 credits/min · Max 145 · Refunded if unused'
+                            : `Per ${feature.unit}`}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold">{featureCosts[feature.key]}</p>
+                      <p className="text-lg font-bold">
+                        {feature.key === 'INTERVIEW' ? 'Up to ' : ''}{featureCosts[feature.key]}
+                      </p>
                       <p className="text-xs text-muted-foreground">credits</p>
                     </div>
                   </div>

@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Calendar,
   Target,
-  Mail
+  Mail,
+  SearchX,
 } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ export default async function SourcingJobsPage() {
       id: true,
       title: true,
       status: true,
+      currentStage: true,
       totalProfilesFound: true,
       profilesScraped: true,
       profilesScored: true,
@@ -254,18 +256,26 @@ export default async function SourcingJobsPage() {
 
                         {/* Error Message */}
                         {job.status === "FAILED" && job.errorMessage && (
-                          <Alert variant="destructive" className="mt-3">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription className="text-xs">
-                              {job.errorMessage}
-                            </AlertDescription>
-                          </Alert>
+                          job.currentStage === "NO_CANDIDATES_FOUND" ? (
+                            <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                              <p className="text-xs text-amber-700 dark:text-amber-300">
+                                No matching candidates found. Try adjusting job requirements and retry.
+                              </p>
+                            </div>
+                          ) : (
+                            <Alert variant="destructive" className="mt-3">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription className="text-xs">
+                                Something went wrong during sourcing. Click to view details and retry.
+                              </AlertDescription>
+                            </Alert>
+                          )
                         )}
                       </div>
 
                       {/* Right Section - Status */}
                       <div className="flex flex-col items-end gap-2">
-                        <StatusBadge status={job.status} />
+                        <StatusBadge status={job.status} currentStage={job.currentStage} />
 
                         {job.status === "COMPLETED" && avgJobScore > 0 && (
                           <Badge
@@ -300,7 +310,7 @@ export default async function SourcingJobsPage() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, currentStage }: { status: string; currentStage?: string | null }) {
   const variants: Record<string, { color: string; label: string; icon: any }> = {
     CREATED: {
       color: "bg-muted text-muted-foreground border-border",
@@ -338,6 +348,16 @@ function StatusBadge({ status }: { status: string }) {
       icon: XCircle
     },
   };
+
+  // Override for "no candidates" — show amber "No Results" instead of red "Failed"
+  if (status === 'FAILED' && currentStage === 'NO_CANDIDATES_FOUND') {
+    return (
+      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800 border flex items-center gap-1.5 px-3 py-1">
+        <SearchX className="w-3.5 h-3.5" />
+        No Results
+      </Badge>
+    );
+  }
 
   const variant = variants[status] || variants.CREATED;
   const Icon = variant.icon;

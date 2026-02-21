@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -20,7 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import {
   Loader2, RefreshCw, Search, ChevronLeft, ChevronRight,
-  Crown, CreditCard, Clock, XCircle, Server,
+  Crown, CreditCard, Clock, XCircle, Server, UserPlus, Copy,
+  Check, Plus, Minus, Activity, Flame, Pause,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,7 +39,19 @@ interface UserRow {
   mailboxCount: number;
 }
 
-type ActionType = 'assign-plan' | 'grant-credits' | 'extend-sub' | 'revoke' | 'mailbox-count';
+interface MailboxInfo {
+  id: string;
+  emailAddress: string;
+  status: string;
+  warmupStage: number;
+  healthScore: number;
+  dailyLimit: number;
+  emailsSentToday?: number;
+  totalEmailsSent?: number;
+  assignedAt?: string;
+}
+
+type ActionType = 'assign-plan' | 'grant-credits' | 'extend-sub' | 'revoke' | 'mailbox-manage';
 
 export default function UsersPage() {
   const api = useAdminClient();
@@ -49,19 +63,34 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Action dialog state
   const [actionUser, setActionUser] = useState<UserRow | null>(null);
   const [actionType, setActionType] = useState<ActionType | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Form fields for different actions
+  // Form fields
   const [formPlanSlug, setFormPlanSlug] = useState('growth');
   const [formDuration, setFormDuration] = useState('30');
+  const [formGrantCredits, setFormGrantCredits] = useState(true);
   const [formCredits, setFormCredits] = useState('');
+  const [formCreditsMode, setFormCreditsMode] = useState<'add' | 'set'>('set');
   const [formDays, setFormDays] = useState('');
-  const [formMailboxCount, setFormMailboxCount] = useState('');
   const [formReason, setFormReason] = useState('');
+
+  // Create user dialog
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createName, setCreateName] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createCompany, setCreateCompany] = useState('');
+
+  // Mailbox management dialog
+  const [mailboxLoading, setMailboxLoading] = useState(false);
+  const [assignedMailboxes, setAssignedMailboxes] = useState<MailboxInfo[]>([]);
+  const [availableMailboxes, setAvailableMailboxes] = useState<MailboxInfo[]>([]);
 
   async function fetchUsers() {
     setLoading(true);
@@ -94,22 +123,67 @@ export default function UsersPage() {
     setSearch(searchInput);
   }
 
+  function copyUserId(id: string) {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
   function openAction(user: UserRow, type: ActionType) {
     setActionUser(user);
     setActionType(type);
     setFormPlanSlug('growth');
     setFormDuration('30');
+    setFormGrantCredits(true);
     setFormCredits('');
+    setFormCreditsMode('set');
     setFormDays('');
-    setFormMailboxCount(String(user.mailboxCount));
     setFormReason('');
+
+    if (type === 'mailbox-manage') {
+      fetchUserMailboxes(user.id);
+    }
   }
 
   function closeAction() {
     setActionUser(null);
     setActionType(null);
     setActionLoading(false);
+    setAssignedMailboxes([]);
+    setAvailableMailboxes([]);
   }
+
+  // ---- Create User ----
+
+  async function handleCreateUser() {
+    if (!createEmail || !createName || !createPassword) return;
+    setCreateLoading(true);
+    try {
+      const { ok, data } = await api.post('/api/admin/create-user', {
+        email: createEmail,
+        name: createName,
+        password: createPassword,
+        companyName: createCompany || undefined,
+      });
+      if (ok) {
+        toast.success(`Created user: ${data.user.email}`);
+        setShowCreateUser(false);
+        setCreateEmail('');
+        setCreateName('');
+        setCreatePassword('');
+        setCreateCompany('');
+        fetchUsers();
+      } else {
+        toast.error(data?.error || 'Failed to create user');
+      }
+    } catch {
+      toast.error('Failed to create user');
+    } finally {
+      setCreateLoading(false);
+    }
+  }
+
+  // ---- Assign Plan ----
 
   async function handleAssignPlan() {
     if (!actionUser) return;
@@ -119,10 +193,11 @@ export default function UsersPage() {
         userId: actionUser.id,
         planSlug: formPlanSlug,
         durationDays: parseInt(formDuration) || 30,
+        grantCredits: formGrantCredits,
         reason: formReason || undefined,
       });
       if (ok) {
-        toast.success(`Assigned ${data.plan.name} to ${actionUser.email}`);
+        toast.success(`Assigned ${data.plan.name} to ${actionUser.email}${formGrantCredits ? ` (+${data.creditsGranted} credits)` : ' (no credits)'}`);
         closeAction();
         fetchUsers();
       } else {
@@ -135,28 +210,48 @@ export default function UsersPage() {
     }
   }
 
-  async function handleGrantCredits() {
+  // ---- Credits ----
+
+  async function handleCredits() {
     if (!actionUser) return;
     setActionLoading(true);
     try {
-      const { ok, data } = await api.post('/api/admin/grant-credits', {
-        userId: actionUser.id,
-        amount: parseInt(formCredits) || 0,
-        reason: formReason || undefined,
-      });
-      if (ok) {
-        toast.success(`Granted ${data.creditsGranted} credits. New balance: ${data.newBalance}`);
-        closeAction();
-        fetchUsers();
+      const amount = parseInt(formCredits) || 0;
+      if (formCreditsMode === 'set') {
+        const { ok, data } = await api.post('/api/admin/set-credits', {
+          userId: actionUser.id,
+          amount,
+          reason: formReason || undefined,
+        });
+        if (ok) {
+          toast.success(`Credits set: ${data.previousBalance} → ${data.newBalance}`);
+          closeAction();
+          fetchUsers();
+        } else {
+          toast.error(data?.error || 'Failed to set credits');
+        }
       } else {
-        toast.error(data?.error || 'Failed to grant credits');
+        const { ok, data } = await api.post('/api/admin/grant-credits', {
+          userId: actionUser.id,
+          amount,
+          reason: formReason || undefined,
+        });
+        if (ok) {
+          toast.success(`Added ${data.creditsGranted} credits. Balance: ${data.newBalance}`);
+          closeAction();
+          fetchUsers();
+        } else {
+          toast.error(data?.error || 'Failed to grant credits');
+        }
       }
     } catch {
-      toast.error('Failed to grant credits');
+      toast.error('Failed to update credits');
     } finally {
       setActionLoading(false);
     }
   }
+
+  // ---- Extend Sub ----
 
   async function handleExtendSub() {
     if (!actionUser) return;
@@ -181,6 +276,8 @@ export default function UsersPage() {
     }
   }
 
+  // ---- Revoke ----
+
   async function handleRevoke() {
     if (!actionUser) return;
     setActionLoading(true);
@@ -203,28 +300,58 @@ export default function UsersPage() {
     }
   }
 
-  async function handleMailboxCount() {
-    if (!actionUser) return;
-    setActionLoading(true);
+  // ---- Mailbox Management ----
+
+  async function fetchUserMailboxes(userId: string) {
+    setMailboxLoading(true);
     try {
-      const { ok, data } = await api.post('/api/admin/assign-mailbox-count', {
-        userId: actionUser.id,
-        count: parseInt(formMailboxCount) || 0,
-        reason: formReason || undefined,
-      });
+      const { ok, data } = await api.get(`/api/admin/users/${userId}/mailboxes`);
       if (ok) {
-        toast.success(`Mailboxes: ${data.previousCount} → ${data.newCount} (${data.result.action})`);
-        closeAction();
-        fetchUsers();
+        setAssignedMailboxes(data.assigned);
+        setAvailableMailboxes(data.available);
       } else {
-        toast.error(data?.error || 'Failed to update mailbox count');
+        toast.error(data?.error || 'Failed to load mailboxes');
       }
     } catch {
-      toast.error('Failed to update mailbox count');
+      toast.error('Failed to load mailboxes');
     } finally {
-      setActionLoading(false);
+      setMailboxLoading(false);
     }
   }
+
+  async function handleAssignMailbox(mailboxId: string) {
+    if (!actionUser) return;
+    try {
+      const { ok, data } = await api.post(`/api/admin/users/${actionUser.id}/mailboxes/assign`, { mailboxId });
+      if (ok) {
+        toast.success(`Assigned ${data.mailbox}`);
+        fetchUserMailboxes(actionUser.id);
+        fetchUsers();
+      } else {
+        toast.error(data?.error || 'Failed to assign mailbox');
+      }
+    } catch {
+      toast.error('Failed to assign mailbox');
+    }
+  }
+
+  async function handleReleaseMailbox(mailboxId: string) {
+    if (!actionUser) return;
+    try {
+      const { ok, data } = await api.post(`/api/admin/users/${actionUser.id}/mailboxes/release`, { mailboxId });
+      if (ok) {
+        toast.success(`Released ${data.mailbox}`);
+        fetchUserMailboxes(actionUser.id);
+        fetchUsers();
+      } else {
+        toast.error(data?.error || 'Failed to release mailbox');
+      }
+    } catch {
+      toast.error('Failed to release mailbox');
+    }
+  }
+
+  // ---- Helpers ----
 
   function getPlanBadge(plan: string, status: string) {
     if (status === 'CANCELLED' || plan === 'Free') {
@@ -243,6 +370,15 @@ export default function UsersPage() {
     );
   }
 
+  function getStatusIcon(status: string) {
+    switch (status) {
+      case 'ACTIVE': return <Activity className="h-3 w-3 text-green-500" />;
+      case 'WARMING': return <Flame className="h-3 w-3 text-orange-500" />;
+      case 'PAUSED': return <Pause className="h-3 w-3 text-red-500" />;
+      default: return <XCircle className="h-3 w-3 text-gray-500" />;
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -253,10 +389,16 @@ export default function UsersPage() {
             {total} total users
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="default" size="sm" onClick={() => setShowCreateUser(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Create User
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filters */}
@@ -319,7 +461,20 @@ export default function UsersPage() {
                   <TableRow key={u.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium text-sm">{u.email}</div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-sm">{u.email}</span>
+                          <button
+                            onClick={() => copyUserId(u.id)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title={`Copy ID: ${u.id}`}
+                          >
+                            {copiedId === u.id ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
                         {u.name && (
                           <div className="text-xs text-muted-foreground">{u.name}</div>
                         )}
@@ -378,7 +533,7 @@ export default function UsersPage() {
                           variant="ghost"
                           size="sm"
                           className="h-7 text-xs"
-                          onClick={() => openAction(u, 'mailbox-count')}
+                          onClick={() => openAction(u, 'mailbox-manage')}
                         >
                           <Server className="h-3 w-3 mr-1" />
                           Mailboxes
@@ -431,7 +586,65 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Assign Plan Dialog */}
+      {/* ======== CREATE USER DIALOG ======== */}
+      <Dialog open={showCreateUser} onOpenChange={setShowCreateUser}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create User</DialogTitle>
+            <DialogDescription>
+              Create a new user account (skips email verification).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="John Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
+                type="text"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                placeholder="Temporary password for the user"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Company Name (optional)</Label>
+              <Input
+                value={createCompany}
+                onChange={(e) => setCreateCompany(e.target.value)}
+                placeholder="Acme Inc."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateUser(false)}>Cancel</Button>
+            <Button
+              onClick={handleCreateUser}
+              disabled={createLoading || !createEmail || !createName || !createPassword}
+            >
+              {createLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======== ASSIGN PLAN DIALOG ======== */}
       <Dialog open={actionType === 'assign-plan'} onOpenChange={() => closeAction()}>
         <DialogContent>
           <DialogHeader>
@@ -469,6 +682,21 @@ export default function UsersPage() {
                 placeholder="30"
               />
             </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="grantCredits"
+                checked={formGrantCredits}
+                onCheckedChange={(checked) => setFormGrantCredits(checked as boolean)}
+              />
+              <label htmlFor="grantCredits" className="text-sm cursor-pointer">
+                Grant plan credits automatically
+              </label>
+            </div>
+            {!formGrantCredits && (
+              <p className="text-xs text-muted-foreground">
+                Plan will be assigned without adding credits. Use the Credits button to set a custom amount after.
+              </p>
+            )}
             <div className="space-y-2">
               <Label>Reason (optional)</Label>
               <Input
@@ -488,13 +716,13 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Grant Credits Dialog */}
+      {/* ======== CREDITS DIALOG (Add or Set) ======== */}
       <Dialog open={actionType === 'grant-credits'} onOpenChange={() => closeAction()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Grant Credits</DialogTitle>
+            <DialogTitle>Manage Credits</DialogTitle>
             <DialogDescription>
-              Add credits to <strong>{actionUser?.email}</strong>
+              Update credits for <strong>{actionUser?.email}</strong>
               <span className="block mt-1 text-xs">
                 Current balance: {actionUser?.credits} credits
               </span>
@@ -502,37 +730,72 @@ export default function UsersPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Credits to add</Label>
+              <Label>Mode</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={formCreditsMode === 'set' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFormCreditsMode('set')}
+                  className="flex-1"
+                >
+                  Set Exact
+                </Button>
+                <Button
+                  variant={formCreditsMode === 'add' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFormCreditsMode('add')}
+                  className="flex-1"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                {formCreditsMode === 'set' ? 'Set balance to' : 'Credits to add'}
+              </Label>
               <Input
                 type="number"
                 value={formCredits}
                 onChange={(e) => setFormCredits(e.target.value)}
-                placeholder="e.g. 500"
+                placeholder={formCreditsMode === 'set' ? 'e.g. 1000' : 'e.g. 500'}
+                min={0}
               />
+              {formCreditsMode === 'set' && formCredits && (
+                <p className="text-xs text-muted-foreground">
+                  {actionUser?.credits} → {formCredits} credits
+                </p>
+              )}
+              {formCreditsMode === 'add' && formCredits && (
+                <p className="text-xs text-muted-foreground">
+                  {actionUser?.credits} + {formCredits} = {(actionUser?.credits || 0) + (parseInt(formCredits) || 0)} credits
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Reason (optional)</Label>
               <Input
                 value={formReason}
                 onChange={(e) => setFormReason(e.target.value)}
-                placeholder="e.g. compensation, demo top-up"
+                placeholder="e.g. demo setup, compensation"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={closeAction}>Cancel</Button>
             <Button
-              onClick={handleGrantCredits}
-              disabled={actionLoading || !formCredits || parseInt(formCredits) <= 0}
+              onClick={handleCredits}
+              disabled={actionLoading || !formCredits || (formCreditsMode === 'add' && parseInt(formCredits) <= 0)}
             >
               {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Grant Credits
+              {formCreditsMode === 'set' ? 'Set Credits' : 'Add Credits'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Extend Subscription Dialog */}
+      {/* ======== EXTEND SUBSCRIPTION DIALOG ======== */}
       <Dialog open={actionType === 'extend-sub'} onOpenChange={() => closeAction()}>
         <DialogContent>
           <DialogHeader>
@@ -576,7 +839,7 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Revoke Plan Dialog */}
+      {/* ======== REVOKE PLAN DIALOG ======== */}
       <Dialog open={actionType === 'revoke'} onOpenChange={() => closeAction()}>
         <DialogContent>
           <DialogHeader>
@@ -610,47 +873,98 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Mailbox Count Dialog */}
-      <Dialog open={actionType === 'mailbox-count'} onOpenChange={() => closeAction()}>
-        <DialogContent>
+      {/* ======== MAILBOX MANAGEMENT DIALOG ======== */}
+      <Dialog open={actionType === 'mailbox-manage'} onOpenChange={() => closeAction()}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Set Mailbox Count</DialogTitle>
+            <DialogTitle>Manage Mailboxes</DialogTitle>
             <DialogDescription>
-              Override mailbox count for <strong>{actionUser?.email}</strong>
-              <span className="block mt-1 text-xs">
-                Current: {actionUser?.mailboxCount} mailboxes
-              </span>
+              Manage mailboxes for <strong>{actionUser?.email}</strong>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Desired mailbox count</Label>
-              <Input
-                type="number"
-                value={formMailboxCount}
-                onChange={(e) => setFormMailboxCount(e.target.value)}
-                placeholder="e.g. 5"
-                min={0}
-              />
+
+          {mailboxLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-            <div className="space-y-2">
-              <Label>Reason (optional)</Label>
-              <Input
-                value={formReason}
-                onChange={(e) => setFormReason(e.target.value)}
-                placeholder="e.g. custom allocation"
-              />
+          ) : (
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+              {/* Assigned Mailboxes */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">
+                  Assigned ({assignedMailboxes.length})
+                </h4>
+                {assignedMailboxes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No mailboxes assigned</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignedMailboxes.map((mb) => (
+                      <div key={mb.id} className="flex items-center justify-between p-2 rounded border text-sm">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(mb.status)}
+                          <span className="font-mono text-xs">{mb.emailAddress}</span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            S{mb.warmupStage}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            HP:{mb.healthScore} | {mb.emailsSentToday}/{mb.dailyLimit}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-red-600 hover:text-red-700"
+                          onClick={() => handleReleaseMailbox(mb.id)}
+                        >
+                          <Minus className="h-3 w-3 mr-1" />
+                          Release
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Available Pool */}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">
+                  Available Pool ({availableMailboxes.length})
+                </h4>
+                {availableMailboxes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No mailboxes available in pool</p>
+                ) : (
+                  <div className="space-y-2">
+                    {availableMailboxes.map((mb) => (
+                      <div key={mb.id} className="flex items-center justify-between p-2 rounded border text-sm">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(mb.status)}
+                          <span className="font-mono text-xs">{mb.emailAddress}</span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            S{mb.warmupStage}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            HP:{mb.healthScore} | Limit:{mb.dailyLimit}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-green-600 hover:text-green-700"
+                          onClick={() => handleAssignMailbox(mb.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Assign
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={closeAction}>Cancel</Button>
-            <Button
-              onClick={handleMailboxCount}
-              disabled={actionLoading || formMailboxCount === ''}
-            >
-              {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Update
-            </Button>
+            <Button variant="outline" onClick={closeAction}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

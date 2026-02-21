@@ -165,6 +165,11 @@ function getMimeTypeFromPath(path: string): string {
     pdf: "application/pdf",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     doc: "application/msword",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
   };
 
   return mimeTypes[ext || ""] || "application/octet-stream";

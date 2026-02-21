@@ -66,6 +66,7 @@ export default function PublicInterviewPage() {
 
   const vapiRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const durationRef = useRef(0);
   const micTestRef = useRef<{ stream: MediaStream | null; audioContext: AudioContext | null }>({
     stream: null,
     audioContext: null
@@ -196,7 +197,8 @@ export default function PublicInterviewPage() {
   async function handleCallStart() {
     setCallStatus('active');
     timerRef.current = setInterval(() => {
-      setCallDuration(prev => prev + 1);
+      durationRef.current += 1;
+      setCallDuration(durationRef.current);
     }, 1000);
 
     try {
@@ -213,7 +215,11 @@ export default function PublicInterviewPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      await fetch(`${API_URL}/api/interview-link/${token}/complete`, { method: 'POST' });
+      await fetch(`${API_URL}/api/interview-link/${token}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration: durationRef.current }),
+      });
     } catch (error) {
       console.error('Error notifying backend of call end:', error);
     }
@@ -270,7 +276,7 @@ export default function PublicInterviewPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-background to-muted/30">
         <div className="text-center space-y-4">
           <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Loading your interview...</p>
@@ -282,7 +288,7 @@ export default function PublicInterviewPage() {
   // Error state
   if (error && !interview) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/30 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-b from-background to-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="h-14 w-14 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
@@ -304,7 +310,7 @@ export default function PublicInterviewPage() {
   const hoursUntilExpiry = Math.max(0, (new Date(interview.linkExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60));
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+    <div className="min-h-screen bg-linear-to-b from-background to-muted/30">
       <div className="max-w-2xl mx-auto px-4 py-8">
 
         {/* Header */}

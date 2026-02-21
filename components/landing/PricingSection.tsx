@@ -303,6 +303,9 @@ const PricingSection = () => {
           <p className="text-hero-muted mb-4">
             Need more credits? Buy any amount instantly from your dashboard starting at ₹5/credit. Unused credits carry over every month.
           </p>
+          <p className="text-hero-muted/70 text-sm">
+            AI Interviews are billed at 21 credits/min (max 145). Unused credits are refunded automatically.
+          </p>
         </div>
 
         {/* Comparison note */}
